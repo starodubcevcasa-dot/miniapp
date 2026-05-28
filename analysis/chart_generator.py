@@ -49,7 +49,6 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
     grid = "#2a2e39"
     up_c = "#089981"
     down_c = "#f23645"
-    wick_c = "#7b7f8d"
 
     fig = plt.figure(figsize=(36, 14), facecolor=bg)
     gs = fig.add_gridspec(2, 1, height_ratios=[5, 1], hspace=0.03)
@@ -76,17 +75,27 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
 
     body_bot = np.where(up, opens, closes)
     body_top = np.where(up, closes, opens)
-    body_h = np.maximum(body_top - body_bot, 1e-10)
+    body_h = body_top - body_bot
+    is_doji = body_h == 0
 
-    candle_w = 0.65
+    candle_w = 0.7
     for i in range(n_actual):
-        wc = "#787b86"
+        wc = up_c if up[i] else down_c
         ax.plot([i, i], [lows[i], highs[i]], color=wc, linewidth=0.8, zorder=1)
 
-    ax.bar(x[up], body_h[up], bottom=body_bot[up], width=candle_w,
-           color=up_c, edgecolor=up_c, linewidth=0, zorder=3)
-    ax.bar(x[down], body_h[down], bottom=body_bot[down], width=candle_w,
-           color=down_c, edgecolor=down_c, linewidth=0, zorder=3)
+    up_idx = np.where(up & ~is_doji)[0]
+    down_idx = np.where(down & ~is_doji)[0]
+    doji_idx = np.where(is_doji)[0]
+
+    if len(up_idx) > 0:
+        ax.bar(x[up_idx], body_h[up_idx], bottom=body_bot[up_idx], width=candle_w,
+               color=up_c, edgecolor=up_c, linewidth=0.3, zorder=3)
+    if len(down_idx) > 0:
+        ax.bar(x[down_idx], body_h[down_idx], bottom=body_bot[down_idx], width=candle_w,
+               color=down_c, edgecolor=down_c, linewidth=0.3, zorder=3)
+    for i in doji_idx:
+        ax.plot([i - candle_w / 2, i + candle_w / 2], [closes[i], closes[i]],
+                color=up_c if up[i] else down_c, linewidth=1.5, zorder=3)
 
     price_max = highs.max()
     price_min = lows.min()
