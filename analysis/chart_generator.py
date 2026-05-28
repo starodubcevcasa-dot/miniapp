@@ -62,6 +62,9 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
         for s in ["top", "right", "bottom", "left"]:
             a.spines[s].set_visible(False)
 
+    up_color, down_color = "#3fb950", "#f85149"
+    wick_up, wick_down = "#3fb950", "#f85149"
+
     opens = plot["open"].values
     highs = plot["high"].values
     lows = plot["low"].values
@@ -70,17 +73,18 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
     down = ~up
 
     body_bot = np.where(up, opens, closes)
-    body_h = np.maximum(np.abs(closes - opens), 1e-10)
+    body_top = np.where(up, closes, opens)
+    body_h = np.maximum(body_top - body_bot, 1e-10)
 
     for i in range(n_actual):
+        wc = wick_up if up[i] else wick_down
         ax.plot([i, i], [lows[i], highs[i]],
-                color="#e6edf3" if up[i] else "#e6edf3",
-                linewidth=2.0, zorder=1, solid_capstyle="round")
+                color=wc, linewidth=1.2, zorder=1, solid_capstyle="round")
 
-    ax.bar(x[up], body_h[up], bottom=body_bot[up], width=0.85,
-           color="#3fb950", edgecolor="#3fb950", linewidth=0.8, zorder=3, alpha=0.95)
-    ax.bar(x[down], body_h[down], bottom=body_bot[down], width=0.85,
-           color="#f85149", edgecolor="#f85149", linewidth=0.8, zorder=3, alpha=0.95)
+    ax.bar(x[up], body_h[up], bottom=body_bot[up], width=0.8,
+           color=up_color, edgecolor=up_color, linewidth=0.5, zorder=3)
+    ax.bar(x[down], body_h[down], bottom=body_bot[down], width=0.8,
+           color=down_color, edgecolor=down_color, linewidth=0.5, zorder=3)
 
     price_max = highs.max()
     price_min = lows.min()
@@ -121,7 +125,7 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
         ti = max(0, div["to_idx"] - len(df) + n_actual)
         if fi < n_actual and ti < n_actual:
             p1, p2 = div["from_price"], div["to_price"]
-            c = "#3fb950" if div["type"] == "bullish" else "#f85149"
+            c = up_color if div["type"] == "bullish" else down_color
             m = "^" if div["type"] == "bullish" else "v"
 
             ax.scatter([fi, ti], [p1, p2], color=c, s=400, zorder=10, marker=m,
