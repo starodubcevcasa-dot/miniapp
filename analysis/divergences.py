@@ -9,14 +9,31 @@ def find_pivots(series: pd.Series, order: int = 3):
     return high_idx, low_idx
 
 
+DIVERGENCE_MIN_RSI_DIFF = 3.0
+
+
 def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3):
     results = []
     price = df["close"]
     rsi_vals = df["rsi"]
+    atr_val = float(df["atr"].iloc[-1]) if "atr" in df.columns else 0
     n = len(df)
 
     high_idx, low_idx = find_pivots(price, order=pivot_order)
     rsi_high_idx, rsi_low_idx = find_pivots(rsi_vals, order=pivot_order)
+
+    def quality_check(p1, p2):
+        rsi_diff = abs(rsi_vals.iloc[p2] - rsi_vals.iloc[p1])
+        if rsi_diff < DIVERGENCE_MIN_RSI_DIFF:
+            return False
+        price_diff_pct = abs(price.iloc[p2] - price.iloc[p1]) / price.iloc[p1]
+        if price_diff_pct < 0.0005:
+            return False
+        if atr_val > 0:
+            price_diff_atr = abs(price.iloc[p2] - price.iloc[p1]) / atr_val
+            if price_diff_atr < 0.3:
+                return False
+        return True
 
     high_set = set(high_idx)
     rsi_high_set = set(rsi_high_idx)
@@ -26,6 +43,8 @@ def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3)
         for j in range(i + 1, len(common_high)):
             p1, p2 = common_high[i], common_high[j]
             if p2 - p1 > lookback or p2 - p1 < 3:
+                continue
+            if not quality_check(p1, p2):
                 continue
 
             ph = price.iloc[p2] > price.iloc[p1]
@@ -44,6 +63,8 @@ def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3)
         for j in range(i + 1, len(common_low)):
             p1, p2 = common_low[i], common_low[j]
             if p2 - p1 > lookback or p2 - p1 < 3:
+                continue
+            if not quality_check(p1, p2):
                 continue
 
             pl = price.iloc[p2] < price.iloc[p1]
@@ -129,7 +150,8 @@ def generate_entry(df: pd.DataFrame, div: dict, atr_multiplier: float = 1.5) -> 
     }
 
 
-def confidence_score(div: dict, conditions: list, trend: str, struct: str) -> int:
+def confidence_score(div: dict, conditions: list, trend: str, struct: str,
+                     df: pd.DataFrame | None = None) -> int:
     score = 50
 
     if div["strength"] == "regular":
@@ -137,15 +159,18 @@ def confidence_score(div: dict, conditions: list, trend: str, struct: str) -> in
     else:
         score += 5
 
+    rsi_diff = abs(div["to_rsi"] - div["from_rsi"])
+    score += min(int(rsi_diff * 2), 10)
+
     direction = div["type"]
     if trend == "uptrend" and direction == "bullish":
-        score += 15
+        score += 20
     elif trend == "downtrend" and direction == "bearish":
-        score += 15
+        score += 20
     elif trend in ("bullish_bias",):
-        score += 5 if direction == "bullish" else -5
+        score += 8 if direction == "bullish" else -8
     elif trend in ("bearish_bias",):
-        score += 5 if direction == "bearish" else -5
+        score += 8 if direction == "bearish" else -8
 
     if struct == "HH_HL" and direction == "bullish":
         score += 10
@@ -160,6 +185,13 @@ def confidence_score(div: dict, conditions: list, trend: str, struct: str) -> in
         if "up from oversold" in c:
             score += 5
         elif "down from overbought" in c:
+            score += 5
+
+    if df is not None and "volume" in df.columns:
+        vol = df["volume"].iloc[-5:]
+        avg_vol = vol.mean()
+        last_vol = float(df["volume"].iloc[-1])
+        if avg_vol > 0 and last_vol > avg_vol * 1.3:
             score += 5
 
     return max(0, min(100, score))

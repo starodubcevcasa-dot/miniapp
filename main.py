@@ -5,7 +5,10 @@ from config import SYMBOLS, TIMEFRAMES, DIVERGENCE_LOOKBACK, PIVOT_ORDER, ENTRY_
 from data.provider import fetch_custom, normalize_symbol
 from analysis.indicators import compute_all, trend_direction, market_structure
 from analysis.divergences import find_divergences, check_rsi_conditions, generate_entry, confidence_score
-from bot.telegram import send_message, format_mtf_signal
+from bot.telegram import send_message
+
+CONFIDENCE_MIN = 65
+TF_ORDER = ["1m", "5m", "15m", "1h", "4h", "1d"]
 
 
 def analyze_tf(symbol: str, tf: str, df):
@@ -19,7 +22,7 @@ def analyze_tf(symbol: str, tf: str, df):
 
     best = None
     for div in reversed(divergences):
-        confidence = confidence_score(div, conditions, trend, struct)
+        confidence = confidence_score(div, conditions, trend, struct, df)
         if best is None or confidence > best["confidence"]:
             best = {
                 "div": div,
@@ -30,39 +33,76 @@ def analyze_tf(symbol: str, tf: str, df):
                 "price": float(df["close"].iloc[-1]),
             }
 
-    if best:
-        best["entry"] = generate_entry(df, best["div"]) if tf in ENTRY_TIMEFRAMES else None
+    if best and tf in ENTRY_TIMEFRAMES:
+        best["entry"] = generate_entry(df, best["div"])
+    elif best:
+        best["entry"] = None
     return best
 
 
-def print_mtf(symbol: str, results: dict):
-    tfs_sorted = ["1m", "5m", "15m", "1h", "4h", "1d"]
+def mtf_alignment(results: dict, tf: str) -> str:
+    idx = TF_ORDER.index(tf)
+    r = results.get(tf)
+    if not r or not r.get("div"):
+        return "neutral"
+    direction = r["div"]["type"]
+
+    align_score = 0
+    for higher_tf in TF_ORDER[idx + 1:]:
+        h = results.get(higher_tf)
+        if h and h.get("div"):
+            if h["div"]["type"] == direction:
+                align_score += 1
+            else:
+                align_score -= 1
+
+    if align_score >= 2:
+        return "strong"
+    elif align_score >= 1:
+        return "align"
+    elif align_score <= -1:
+        return "conflict"
+    return "neutral"
+
+
+def format_mtf(symbol: str, results: dict):
     name = symbol.replace("=X", "").replace("-USD", "")
+    price = results.get(TF_ORDER[0], {}).get("price", 0)
+    lines = [f"\n{'='*50}", f"  {name}  ${price:.5f}", f"{'='*50}"]
+    lines.append(f"  {'TF':<5} {'Dir':<7} {'Div':<11} {'Conf':<6} {'Align':<8} {'Trend':<14} {'Entry/SL/TP'}")
 
-    lines = [f"\n{'='*50}", f"  {name}  ${results.get(tfs_sorted[0], {}).get('price', 0):.5f}", f"{'='*50}"]
-    lines.append(f"  {'TF':<5} {'Dir':<8} {'Div':<10} {'Conf':<6} {'Trend':<14} {'Entry/SL/TP'}")
+    entry_tf = None
+    entry_data = None
 
-    for tf in tfs_sorted:
+    for tf in TF_ORDER:
         r = results.get(tf)
         if not r or not r.get("div"):
             continue
         d = r["div"]
-        direction = d["type"]
-        strength = d["strength"]
         conf = r["confidence"]
-        trend = r["trend"]
-        arrow = "🟢" if direction == "bullish" else "🔴"
+        if conf < CONFIDENCE_MIN:
+            continue
 
-        div_label = f"{strength[:3]} {direction[:3]}".upper()
-        trend_short = trend.replace("_", " ")[:12]
+        align = mtf_alignment(results, tf)
+        arrow = "🟢" if d["type"] == "bullish" else "🔴"
+        div_label = f"{d['strength'][:3]} {d['type'][:3]}".upper()
+        trend_short = r["trend"].replace("_", " ")[:12]
+        align_short = {"strong": "✅", "align": "↑", "conflict": "⚠", "neutral": "—"}.get(align, "—")
 
-        rest = f"{arrow}  {div_label:<10} {conf}%  {trend_short:<14}"
-
+        rest = f"{arrow}  {div_label:<11} {conf}%  {align_short:<8} {trend_short:<14}"
         e = r.get("entry")
-        if e:
-            rest += f" {e['entry']} / SL:{e['stop_loss']} / TP:{e['take_profit']} (R:R 1:{e['risk_reward']})"
+        if e and tf in ENTRY_TIMEFRAMES and conf >= CONFIDENCE_MIN:
+            rest += f" {e['entry']} / SL:{e['stop_loss']} / TP:{e['take_profit']} (1:{e['risk_reward']})"
+            if not entry_data or r.get("confidence", 0) > entry_data[1]:
+                entry_tf, entry_data = tf, (e, r["confidence"])
 
         lines.append(f"  {tf:<5} {rest}")
+
+    if entry_data:
+        e, conf = entry_data
+        arrow = "🟢" if e["action"] == "BUY" else "🔴"
+        lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {e['action']} {name} @ {e['entry']}"
+                     f"  SL: {e['stop_loss']}  TP: {e['take_profit']}  R:R 1:{e['risk_reward']}  ({entry_tf}, {conf}%)")
 
     return "\n".join(lines)
 
@@ -78,7 +118,8 @@ def analyze_full(symbols: list[str], timeframes: list[str]):
 
     for symbol in symbols:
         if symbol in grouped:
-            text = print_mtf(symbol, grouped[symbol])
+            text = format_mtf(symbol, grouped[symbol])
+            print(text)
             send_message(text)
             time.sleep(0.5)
 
