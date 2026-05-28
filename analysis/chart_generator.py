@@ -40,8 +40,16 @@ def make_price_traces(tf, df, result, is_visible):
         low=df["low"], close=df["close"],
         name=f"{tf}", visible=is_visible,
         showlegend=False,
-        increasing_line_color="#089981", decreasing_line_color="#f23645",
-        line=dict(width=0.8),
+        increasing=dict(line=dict(color="#089981", width=1.5), fillcolor="#089981"),
+        decreasing=dict(line=dict(color="#f23645", width=1.5), fillcolor="#f23645"),
+        line=dict(width=1.5),
+    ))
+
+    traces.append(go.Scatter(
+        x=dates, y=df["close"],
+        name=f"close_{tf}", visible=is_visible, showlegend=False,
+        line=dict(color="white", width=0.8, dash="dot"),
+        opacity=0.4,
     ))
 
     if "sma_20" in df.columns:
@@ -200,7 +208,7 @@ def generate_interactive(symbol, all_data, results, best_entry):
 
     default_tf = best_entry[0] if best_entry else all_tfs[0]
 
-    n_candles = 100
+    n_candles = 60
 
     fig = make_subplots(
         rows=2, cols=1,
