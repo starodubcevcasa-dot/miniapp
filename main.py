@@ -4,19 +4,23 @@ from datetime import datetime
 from config import SYMBOLS, TIMEFRAMES, DIVERGENCE_LOOKBACK
 from data.provider import fetch_all
 from analysis.indicators import compute_all
-from analysis.divergences import find_divergences, check_rsi_conditions
+from analysis.divergences import find_divergences, check_rsi_conditions, generate_entry
 from bot.telegram import send_message, format_signal, format_market_overview
 
 
 def analyze_symbol(symbol: str, tf: str, df):
     df = compute_all(df)
-    divergences = find_divergences(df, lookback=DIVERGENCE_LOOKBACK)
+    lookback = DIVERGENCE_LOOKBACK.get(tf, 20)
+    pivot_order = 5 if tf == "1m" else 3
+    divergences = find_divergences(df, lookback=lookback, pivot_order=pivot_order)
     conditions = check_rsi_conditions(df)
 
     signals = []
-    for div in divergences[-3:]:
-        signal = format_signal(symbol, tf, div, conditions)
-        signals.append({"signal": signal, "div": div, "conditions": conditions})
+    # only the latest divergence per symbol/tf
+    for div in divergences[-1:]:
+        entry = generate_entry(df, div) if tf == "1m" else None
+        signal = format_signal(symbol, tf, div, conditions, entry)
+        signals.append({"signal": signal, "div": div, "conditions": conditions, "entry": entry})
 
     return signals, float(df["close"].iloc[-1])
 
@@ -37,6 +41,10 @@ def run_once():
                 "type": s["div"]["type"],
                 "price": price,
             })
+            if s.get("entry"):
+                print(f"\n>>> {s['entry']['action']} {symbol} {tf} @ {s['entry']['entry']} "
+                      f"SL:{s['entry']['stop_loss']} TP:{s['entry']['take_profit']} "
+                      f"R:R 1:{s['entry']['risk_reward']}\n")
 
     for s in all_signals:
         send_message(s["signal"])

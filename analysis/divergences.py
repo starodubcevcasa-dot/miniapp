@@ -9,14 +9,14 @@ def find_pivots(series: pd.Series, order: int = 3):
     return high_idx, low_idx
 
 
-def find_divergences(df: pd.DataFrame, lookback: int = 20):
+def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3):
     results = []
     price = df["close"]
     rsi_vals = df["rsi"]
     n = len(df)
 
-    high_idx, low_idx = find_pivots(price, order=3)
-    rsi_high_idx, rsi_low_idx = find_pivots(rsi_vals, order=3)
+    high_idx, low_idx = find_pivots(price, order=pivot_order)
+    rsi_high_idx, rsi_low_idx = find_pivots(rsi_vals, order=pivot_order)
 
     high_set = set(high_idx)
     rsi_high_set = set(rsi_high_idx)
@@ -95,3 +95,32 @@ def check_rsi_conditions(df: pd.DataFrame):
         conditions.append("RSI turning down from overbought")
 
     return conditions
+
+
+def generate_entry(df: pd.DataFrame, div: dict, atr_multiplier: float = 1.5) -> dict:
+    last = df.iloc[-1]
+    atr_val = df["atr"].iloc[-1]
+    direction = div["type"]
+    entry = float(last["close"])
+
+    if direction == "bullish":
+        sl = entry - atr_val * atr_multiplier
+        tp = entry + atr_val * atr_multiplier * 2
+        stop_idx = div["from_idx"]
+        recent_low = float(df["low"].iloc[stop_idx:].min())
+        sl = max(sl, recent_low - atr_val * 0.3)
+    else:
+        sl = entry + atr_val * atr_multiplier
+        tp = entry - atr_val * atr_multiplier * 2
+        stop_idx = div["from_idx"]
+        recent_high = float(df["high"].iloc[stop_idx:].max())
+        sl = min(sl, recent_high + atr_val * 0.3)
+
+    return {
+        "action": "BUY" if direction == "bullish" else "SELL",
+        "entry": round(entry, 5),
+        "stop_loss": round(sl, 5),
+        "take_profit": round(tp, 5),
+        "atr": round(atr_val, 5),
+        "risk_reward": round(abs(tp - entry) / abs(sl - entry), 2) if abs(sl - entry) > 0 else 0,
+    }

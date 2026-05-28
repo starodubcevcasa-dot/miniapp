@@ -28,7 +28,8 @@ def send_message(text: str) -> bool:
         return False
 
 
-def format_signal(symbol: str, tf: str, div: dict, conditions: list) -> str:
+def format_signal(symbol: str, tf: str, div: dict, conditions: list,
+                  entry: dict | None = None) -> str:
     emoji = "🐻" if div["type"] == "bearish" else "🐂"
     lines = [
         f"{emoji} <b>{symbol} {tf}</b>",
@@ -38,6 +39,16 @@ def format_signal(symbol: str, tf: str, div: dict, conditions: list) -> str:
     ]
     if conditions:
         lines.append(f"Conditions: {' | '.join(conditions)}")
+    if entry:
+        arrow = "🟢" if entry["action"] == "BUY" else "🔴"
+        lines.extend([
+            "",
+            f"{arrow} <b>{entry['action']}</b>",
+            f"Entry: {entry['entry']}",
+            f"SL:    {entry['stop_loss']}",
+            f"TP:    {entry['take_profit']}",
+            f"R:R  1:{entry['risk_reward']}",
+        ])
     return "\n".join(lines)
 
 

@@ -3,7 +3,7 @@ import pickle
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-from config import DATA_DIR, TIMEFRAMES, SYMBOLS
+from config import DATA_DIR, TIMEFRAMES, SYMBOLS, FETCH_PERIOD
 
 
 def ensure_data_dir():
@@ -28,15 +28,21 @@ def save_cache(symbol, tf, df):
         pickle.dump(df, f)
 
 
-def fetch_ohlcv(symbol: str, tf: str, period: str = "2mo") -> pd.DataFrame:
+CACHE_TTL = {"1m": 60, "1h": 3600, "4h": 7200, "1d": 86400}
+
+
+def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
+    period = FETCH_PERIOD.get(tf, "2mo")
+    cache_ttl = CACHE_TTL.get(tf, 3600)
+
     cached = load_cached(symbol, tf)
     if cached is not None and not cached.empty:
         last_time = cached.index[-1]
         now = datetime.now(last_time.tzinfo)
-        if now - last_time < timedelta(hours=1):
+        if now - last_time < timedelta(seconds=cache_ttl):
             return cached
 
-    interval_map = {"1h": "60m", "4h": "1h", "1d": "1d"}
+    interval_map = {"1m": "1m", "1h": "60m", "4h": "1h", "1d": "1d"}
     interval = interval_map.get(tf, "1h")
 
     ticker = yf.Ticker(symbol)
