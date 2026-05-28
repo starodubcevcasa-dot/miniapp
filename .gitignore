@@ -5,3 +5,4 @@ data_cache/
 .env
 signals.json
 risk_log.json
+charts/
