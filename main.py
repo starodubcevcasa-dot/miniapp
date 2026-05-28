@@ -67,7 +67,12 @@ def mtf_alignment(results: dict, tf: str) -> str:
 
 def format_mtf(symbol: str, results: dict):
     name = symbol.replace("=X", "").replace("-USD", "")
-    price = results.get(TF_ORDER[0], {}).get("price", 0)
+    price = 0
+    for tf in TF_ORDER:
+        r = results.get(tf)
+        if r and r.get("price", 0) > 0:
+            price = r["price"]
+            break
     lines = [f"\n{'='*50}", f"  {name}  ${price:.5f}", f"{'='*50}"]
     lines.append(f"  {'TF':<5} {'Dir':<7} {'Div':<11} {'Conf':<6} {'Align':<8} {'Trend':<14} {'Entry/SL/TP'}")
 
