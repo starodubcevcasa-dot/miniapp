@@ -147,6 +147,7 @@ def generate_entry(df: pd.DataFrame, div: dict, atr_multiplier: float = 1.5) -> 
         "take_profit": round(tp, 5),
         "atr": round(atr_val, 5),
         "risk_reward": round(reward / risk, 2) if risk > 0 else 0,
+        "signal_idx": int(div["to_idx"]),
     }
 
 

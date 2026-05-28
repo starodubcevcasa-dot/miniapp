@@ -147,16 +147,39 @@ def _render(symbol, all_data, results, best_entry):
         rr = result["entry"].get("risk_reward", "?")
         act = "ПОКУПКА" if result["entry"]["action"] == "BUY" else "ПРОДАЖА"
         dc = "#089981" if result["entry"]["action"] == "BUY" else "#f23645"
+        ec = "#f23645" if result["entry"]["action"] == "BUY" else "#089981"
 
-        ax_main.annotate(f"{act}\n{ep:.5f}", xy=(len(df) - 1, ep), xytext=(10, -25),
-                         textcoords="offset points", fontsize=13, weight="bold", color="#fff",
-                         bbox=dict(boxstyle="round,pad=0.35", facecolor=dc, alpha=0.95, edgecolor="white"))
-        ax_main.annotate(f"SL {sl:.5f}", xy=(len(df) - 1, sl), xytext=(10, -15),
-                         textcoords="offset points", fontsize=11, color="#fff", weight="bold",
-                         bbox=dict(boxstyle="round,pad=0.2", facecolor="#f23645", alpha=0.9, edgecolor="white"))
-        ax_main.annotate(f"TP {tp:.5f} (1:{rr})", xy=(len(df) - 1, tp), xytext=(10, 5),
-                         textcoords="offset points", fontsize=11, color="#fff", weight="bold",
-                         bbox=dict(boxstyle="round,pad=0.2", facecolor="#089981", alpha=0.9, edgecolor="white"))
+        sig_idx = result["entry"].get("signal_idx")
+        if sig_idx is not None:
+            local_sig = max(0, sig_idx - len(all_data[default_tf]) + len(df))
+            if 0 <= local_sig < len(df):
+                sig_high = df["high"].iloc[local_sig]
+                sig_low = df["low"].iloc[local_sig]
+                sig_mid = (sig_high + sig_low) / 2
+
+                ax_main.annotate("",
+                                 xy=(local_sig, sig_high), xytext=(local_sig, sig_high + (df["high"].max() - df["low"].min()) * 0.15),
+                                 fontsize=20, weight="bold",
+                                 arrowprops=dict(arrowstyle="->", color=dc, lw=3))
+
+                ax_main.scatter(local_sig, sig_mid, marker="o", s=300, color=dc,
+                                edgecolors="white", linewidth=2, zorder=10, alpha=0.5)
+
+        ax_main.axhline(y=ep, color="#ffffff", linewidth=2, linestyle="-", alpha=0.8, zorder=5)
+        ax_main.axhline(y=sl, color="#f23645", linewidth=2, linestyle="--", alpha=0.7, zorder=5)
+        ax_main.axhline(y=tp, color="#089981", linewidth=2, linestyle="--", alpha=0.7, zorder=5)
+
+        ax_main.fill_between(range(len(df)), ep, sl, color=ec, alpha=0.08, zorder=1)
+
+        ax_main.annotate(f"{act}\n{ep:.5f}", xy=(len(df) - 0.5, ep), xytext=(15, -30),
+                         textcoords="offset points", fontsize=15, weight="bold", color="#fff",
+                         bbox=dict(boxstyle="round,pad=0.4", facecolor=dc, alpha=0.95, edgecolor="white"))
+        ax_main.annotate(f"SL {sl:.5f}", xy=(len(df) - 0.5, sl), xytext=(15, -18),
+                         textcoords="offset points", fontsize=13, color="#fff", weight="bold",
+                         bbox=dict(boxstyle="round,pad=0.25", facecolor="#f23645", alpha=0.95, edgecolor="white"))
+        ax_main.annotate(f"TP {tp:.5f} (1:{rr})", xy=(len(df) - 0.5, tp), xytext=(15, 5),
+                         textcoords="offset points", fontsize=13, color="#fff", weight="bold",
+                         bbox=dict(boxstyle="round,pad=0.25", facecolor="#089981", alpha=0.95, edgecolor="white"))
 
     fig.savefig(filepath, dpi=200, bbox_inches="tight", facecolor="#131722")
     plt.close(fig)
