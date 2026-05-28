@@ -25,27 +25,16 @@ def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3)
     for i in range(len(common_high)):
         for j in range(i + 1, len(common_high)):
             p1, p2 = common_high[i], common_high[j]
-            if p2 - p1 > lookback:
-                continue
-            if p2 - p1 < 3:
+            if p2 - p1 > lookback or p2 - p1 < 3:
                 continue
 
-            price_higher = price.iloc[p2] > price.iloc[p1]
-            rsi_lower = rsi_vals.iloc[p2] < rsi_vals.iloc[p1]
+            ph = price.iloc[p2] > price.iloc[p1]
+            rl = rsi_vals.iloc[p2] < rsi_vals.iloc[p1]
 
-            if price_higher and rsi_lower:
-                results.append({
-                    "type": "bearish",
-                    "strength": "regular",
-                    "from_idx": int(p1),
-                    "to_idx": int(p2),
-                    "from_price": float(price.iloc[p1]),
-                    "to_price": float(price.iloc[p2]),
-                    "from_rsi": float(rsi_vals.iloc[p1]),
-                    "to_rsi": float(rsi_vals.iloc[p2]),
-                    "time_from": str(df.index[p1]),
-                    "time_to": str(df.index[p2]),
-                })
+            if ph and rl:
+                results.append(make_div("bearish", "regular", df, p1, p2))
+            elif not ph and rl:
+                results.append(make_div("bullish", "hidden", df, p1, p2))
 
     low_set = set(low_idx)
     rsi_low_set = set(rsi_low_idx)
@@ -54,29 +43,35 @@ def find_divergences(df: pd.DataFrame, lookback: int = 20, pivot_order: int = 3)
     for i in range(len(common_low)):
         for j in range(i + 1, len(common_low)):
             p1, p2 = common_low[i], common_low[j]
-            if p2 - p1 > lookback:
-                continue
-            if p2 - p1 < 3:
+            if p2 - p1 > lookback or p2 - p1 < 3:
                 continue
 
-            price_lower = price.iloc[p2] < price.iloc[p1]
-            rsi_higher = rsi_vals.iloc[p2] > rsi_vals.iloc[p1]
+            pl = price.iloc[p2] < price.iloc[p1]
+            rh = rsi_vals.iloc[p2] > rsi_vals.iloc[p1]
 
-            if price_lower and rsi_higher:
-                results.append({
-                    "type": "bullish",
-                    "strength": "regular",
-                    "from_idx": int(p1),
-                    "to_idx": int(p2),
-                    "from_price": float(price.iloc[p1]),
-                    "to_price": float(price.iloc[p2]),
-                    "from_rsi": float(rsi_vals.iloc[p1]),
-                    "to_rsi": float(rsi_vals.iloc[p2]),
-                    "time_from": str(df.index[p1]),
-                    "time_to": str(df.index[p2]),
-                })
+            if pl and rh:
+                results.append(make_div("bullish", "regular", df, p1, p2))
+            elif not pl and rh:
+                results.append(make_div("bearish", "hidden", df, p1, p2))
 
     return results
+
+
+def make_div(direction: str, strength: str, df, p1, p2) -> dict:
+    price = df["close"]
+    rsi_vals = df["rsi"]
+    return {
+        "type": direction,
+        "strength": strength,
+        "from_idx": int(p1),
+        "to_idx": int(p2),
+        "from_price": float(price.iloc[p1]),
+        "to_price": float(price.iloc[p2]),
+        "from_rsi": float(rsi_vals.iloc[p1]),
+        "to_rsi": float(rsi_vals.iloc[p2]),
+        "time_from": str(df.index[p1]),
+        "time_to": str(df.index[p2]),
+    }
 
 
 def check_rsi_conditions(df: pd.DataFrame):
@@ -85,21 +80,26 @@ def check_rsi_conditions(df: pd.DataFrame):
     conditions = []
 
     if last["rsi"] < 30:
-        conditions.append(f"RSI oversold: {last['rsi']:.1f}")
+        conditions.append(f"Oversold {last['rsi']:.1f}")
     elif last["rsi"] > 70:
-        conditions.append(f"RSI overbought: {last['rsi']:.1f}")
+        conditions.append(f"Overbought {last['rsi']:.1f}")
 
     if last["rsi"] < 30 and last["rsi"] > prev["rsi"]:
-        conditions.append("RSI turning up from oversold")
+        conditions.append("RSI up from oversold")
     elif last["rsi"] > 70 and last["rsi"] < prev["rsi"]:
-        conditions.append("RSI turning down from overbought")
+        conditions.append("RSI down from overbought")
+
+    if last["rsi"] > 50:
+        conditions.append("RSI>50 bullish")
+    elif last["rsi"] < 50:
+        conditions.append("RSI<50 bearish")
 
     return conditions
 
 
 def generate_entry(df: pd.DataFrame, div: dict, atr_multiplier: float = 1.5) -> dict:
     last = df.iloc[-1]
-    atr_val = df["atr"].iloc[-1]
+    atr_val = float(df["atr"].iloc[-1])
     direction = div["type"]
     entry = float(last["close"])
 
@@ -116,11 +116,50 @@ def generate_entry(df: pd.DataFrame, div: dict, atr_multiplier: float = 1.5) -> 
         recent_high = float(df["high"].iloc[stop_idx:].max())
         sl = min(sl, recent_high + atr_val * 0.3)
 
+    risk = abs(sl - entry)
+    reward = abs(tp - entry)
+
     return {
         "action": "BUY" if direction == "bullish" else "SELL",
         "entry": round(entry, 5),
         "stop_loss": round(sl, 5),
         "take_profit": round(tp, 5),
         "atr": round(atr_val, 5),
-        "risk_reward": round(abs(tp - entry) / abs(sl - entry), 2) if abs(sl - entry) > 0 else 0,
+        "risk_reward": round(reward / risk, 2) if risk > 0 else 0,
     }
+
+
+def confidence_score(div: dict, conditions: list, trend: str, struct: str) -> int:
+    score = 50
+
+    if div["strength"] == "regular":
+        score += 15
+    else:
+        score += 5
+
+    direction = div["type"]
+    if trend == "uptrend" and direction == "bullish":
+        score += 15
+    elif trend == "downtrend" and direction == "bearish":
+        score += 15
+    elif trend in ("bullish_bias",):
+        score += 5 if direction == "bullish" else -5
+    elif trend in ("bearish_bias",):
+        score += 5 if direction == "bearish" else -5
+
+    if struct == "HH_HL" and direction == "bullish":
+        score += 10
+    elif struct == "LH_LL" and direction == "bearish":
+        score += 10
+
+    for c in conditions:
+        if "oversold" in c and direction == "bullish":
+            score += 5
+        elif "overbought" in c and direction == "bearish":
+            score += 5
+        if "up from oversold" in c:
+            score += 5
+        elif "down from overbought" in c:
+            score += 5
+
+    return max(0, min(100, score))
