@@ -5,8 +5,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-import mplfinance as mpf
-from matplotlib import style as mpl_style
+from matplotlib.patches import Rectangle
 
 CHARTS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "charts")
 
@@ -36,6 +35,14 @@ def find_levels(df: pd.DataFrame, lookback: int = 40) -> dict:
     }
 
 
+def draw_candle(ax, x, o, h, l, c, width=0.6, up_color="#00e676", down_color="#ff1744"):
+    color = up_color if c >= o else down_color
+    ax.plot([x, x], [l, h], color=color, linewidth=1.5, solid_capstyle="round")
+    rect = Rectangle((x - width / 2, min(o, c)), width, abs(c - o),
+                     facecolor=color, edgecolor=color, linewidth=0.5)
+    ax.add_patch(rect)
+
+
 def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
                    entry: dict = None) -> str:
     ensure_dir()
@@ -43,100 +50,81 @@ def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
     filename = f"{name}_{tf}_{pd.Timestamp.now().strftime('%H%M%S')}.png"
     filepath = os.path.join(CHARTS_DIR, filename)
 
-    candle_count = 35 if tf in ("1m", "5m") else 35
+    candle_count = 35
     plot_data = df.iloc[-candle_count:].copy()
     plot_data.index = pd.to_datetime(plot_data.index)
 
-    cols = {"open": "Open", "high": "High", "low": "Low", "close": "Close", "volume": "Volume"}
-    plot_renamed = plot_data.rename(columns=cols)
+    bg = "#131722"
+    text_c = "#d1d4dc"
+    grid_c = "#2a2e39"
 
-    bg_color = "#1a1a2e"
-    text_color = "#e0e0e0"
-    grid_color = "#2a2a3e"
+    fig = plt.figure(figsize=(20, 12), facecolor=bg)
+    gs = fig.add_gridspec(4, 1, height_ratios=[4, 0.8, 1.2, 0.8], hspace=0.08)
 
-    mpl_style.use("dark_background")
-    plt.rcParams.update({
-        "figure.facecolor": bg_color,
-        "axes.facecolor": bg_color,
-        "axes.edgecolor": grid_color,
-        "axes.labelcolor": text_color,
-        "text.color": text_color,
-        "xtick.color": text_color,
-        "ytick.color": text_color,
-        "grid.color": grid_color,
-        "font.size": 13,
-        "axes.titlesize": 16,
-    })
+    ax1 = fig.add_subplot(gs[0, 0], facecolor=bg)
+    ax_vol = fig.add_subplot(gs[1, 0], facecolor=bg, sharex=ax1)
+    ax_rsi = fig.add_subplot(gs[2, 0], facecolor=bg, sharex=ax1)
 
-    custom_style = mpf.make_mpf_style(
-        base_mpf_style="charles",
-        rc={
-            "font.size": 13,
-            "figure.facecolor": bg_color,
-            "axes.facecolor": bg_color,
-            "axes.edgecolor": grid_color,
-            "axes.labelcolor": text_color,
-            "text.color": text_color,
-            "xtick.color": text_color,
-            "ytick.color": text_color,
-            "grid.color": grid_color,
-            "grid.alpha": 0.2,
-        },
-        marketcolors=mpf.make_marketcolors(
-            up="#00e676",
-            down="#ff1744",
-            edge="#00e676",
-            wick="#00e676",
-            volume="inherit",
-        ),
-    )
+    fig.suptitle(f"{name} ({tf}) — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
+                 color=text_c, fontsize=18, fontweight="bold", y=0.98)
 
-    ap_data = []
-    rsi_series = plot_data["rsi"] if "rsi" in plot_data.columns else None
-    if rsi_series is not None:
-        ap_data.append(mpf.make_addplot(
-            rsi_series, panel=2, color="#bb86fc", width=2, ylabel="RSI"
-        ))
-        ap_data.append(mpf.make_addplot(
-            pd.Series(70, index=plot_data.index), panel=2,
-            color="#ff1744", linestyle="--", alpha=0.35, width=1,
-        ))
-        ap_data.append(mpf.make_addplot(
-            pd.Series(30, index=plot_data.index), panel=2,
-            color="#00e676", linestyle="--", alpha=0.35, width=1,
-        ))
-        ap_data.append(mpf.make_addplot(
-            pd.Series(50, index=plot_data.index), panel=2,
-            color="#888888", linestyle=":", alpha=0.2, width=0.8,
-        ))
+    for ax in [ax1, ax_vol, ax_rsi]:
+        ax.set_facecolor(bg)
+        ax.tick_params(colors=text_c, labelsize=11)
+        ax.grid(True, alpha=0.12, color=grid_c)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.spines["bottom"].set_color(grid_c)
+        ax.spines["left"].set_color(grid_c)
 
-    fig, axes = mpf.plot(
-        plot_renamed, type="candle", style=custom_style,
-        addplot=ap_data if ap_data else None,
-        volume=True,
-        returnfig=True,
-        figsize=(22, 14),
-        title=f"\n{name} ({tf}) — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
-        panel_ratios=(5, 0.8, 1.5),
-        tight_layout=True,
-        xrotation=0,
-    )
+    dates_num = mdates.date2num(plot_data.index.to_pydatetime())
+    x_range = range(len(plot_data))
 
-    ax1 = axes[0]
-    ax1.grid(True, alpha=0.15, color=grid_color)
-    ax1.tick_params(axis="both", labelsize=12)
+    for i in range(len(plot_data)):
+        row = plot_data.iloc[i]
+        draw_candle(ax1, i, row["open"], row["high"], row["low"], row["close"],
+                    width=0.7, up_color="#00e676", down_color="#ff1744")
+
+    sma20 = plot_data["sma_20"] if "sma_20" in plot_data.columns else None
+    sma50 = plot_data["sma_50"] if "sma_50" in plot_data.columns else None
+    if sma20 is not None:
+        ax1.plot(x_range, sma20.values, color="#2196f3", linewidth=1.5, alpha=0.8, label="SMA20")
+    if sma50 is not None:
+        ax1.plot(x_range, sma50.values, color="#ff9800", linewidth=1.5, alpha=0.8, label="SMA50")
+    ax1.legend(loc="upper left", fontsize=11, facecolor=bg, labelcolor=text_c, edgecolor=grid_c)
+
+    ax1.set_ylabel("Price", color=text_c, fontsize=12)
+    ax1.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.5f}"))
 
     levels = find_levels(df)
     for s in levels["support"]:
         ax1.axhline(y=s, color="#00e676", linewidth=1.5, linestyle="--", alpha=0.6)
-        ax1.text(0.98, s, f"S {s:.5f}", color="#00e676", fontsize=12, weight="bold",
-                 transform=ax1.get_yaxis_transform(), ha="right", va="bottom",
-                 bbox=dict(fc="#1a1a2e", ec="#00e676", alpha=0.7, boxstyle="round,pad=0.2"))
+        ax1.text(len(plot_data) - 1, s, f"S {s:.5f}", color="#00e676", fontsize=12,
+                 weight="bold", ha="right", va="bottom",
+                 bbox=dict(fc=bg, ec="#00e676", alpha=0.8, boxstyle="round,pad=0.2"))
     for r in levels["resistance"]:
         ax1.axhline(y=r, color="#ff1744", linewidth=1.5, linestyle="--", alpha=0.6)
-        ax1.text(0.98, r, f"R {r:.5f}", color="#ff1744", fontsize=12, weight="bold",
-                 transform=ax1.get_yaxis_transform(), ha="right", va="bottom",
-                 bbox=dict(fc="#1a1a2e", ec="#ff1744", alpha=0.7, boxstyle="round,pad=0.2"))
+        ax1.text(len(plot_data) - 1, r, f"R {r:.5f}", color="#ff1744", fontsize=12,
+                 weight="bold", ha="right", va="bottom",
+                 bbox=dict(fc=bg, ec="#ff1744", alpha=0.8, boxstyle="round,pad=0.2"))
+
+    if "volume" in plot_data.columns:
+        vol = plot_data["volume"].values
+        colors_vol = ["#00e676" if plot_data["close"].iloc[i] >= plot_data["open"].iloc[i]
+                      else "#ff1744" for i in range(len(plot_data))]
+        ax_vol.bar(x_range, vol, color=colors_vol, width=0.8, alpha=0.7)
+        ax_vol.set_ylabel("Vol", color=text_c, fontsize=11)
+        ax_vol.set_ylim(bottom=0)
+
+    rsi_vals = plot_data["rsi"].values if "rsi" in plot_data.columns else None
+    if rsi_vals is not None:
+        ax_rsi.plot(x_range, rsi_vals, color="#bb86fc", linewidth=2, label="RSI")
+        ax_rsi.axhline(y=70, color="#ff1744", linestyle="--", alpha=0.35, linewidth=1)
+        ax_rsi.axhline(y=30, color="#00e676", linestyle="--", alpha=0.35, linewidth=1)
+        ax_rsi.axhline(y=50, color="#888888", linestyle=":", alpha=0.2, linewidth=0.8)
+        ax_rsi.set_ylabel("RSI", color=text_c, fontsize=11)
+        ax_rsi.set_ylim(0, 100)
+        ax_rsi.legend(loc="upper left", fontsize=11, facecolor=bg, labelcolor=text_c, edgecolor=grid_c)
 
     if div:
         from_idx = max(0, div["from_idx"] - len(df) + len(plot_data))
@@ -144,51 +132,46 @@ def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
         if from_idx < len(plot_data) and to_idx < len(plot_data):
             p1_price = div["from_price"]
             p2_price = div["to_price"]
-            t1 = mdates.date2num(plot_data.index[from_idx])
-            t2 = mdates.date2num(plot_data.index[to_idx])
             color = "#00e676" if div["type"] == "bullish" else "#ff1744"
             marker = "^" if div["type"] == "bullish" else "v"
 
-            ax1.scatter([t1, t2], [p1_price, p2_price],
-                        color=color, s=200, zorder=10, marker=marker,
-                        edgecolors="white", linewidth=2)
-            ax1.plot([t1, t2], [p1_price, p2_price],
-                     color=color, linewidth=2, linestyle=":", alpha=0.9)
+            ax1.scatter([from_idx, to_idx], [p1_price, p2_price],
+                        color=color, s=250, zorder=10, marker=marker,
+                        edgecolors="white", linewidth=2.5)
+            ax1.plot([from_idx, to_idx], [p1_price, p2_price],
+                     color=color, linewidth=2.5, linestyle=":", alpha=0.9)
 
             label = f"{'БЫЧЬЯ' if div['type'] == 'bullish' else 'МЕДВЕЖЬЯ'} ДИВЕРГЕНЦИЯ"
-            xy_off = (-80, -80) if div["type"] == "bullish" else (80, 80)
-            ax1.annotate(label, xy=(t2, p2_price), xytext=xy_off,
+            xy_off = (-30, -60) if div["type"] == "bullish" else (30, 60)
+            ax1.annotate(label, xy=(to_idx, p2_price), xytext=xy_off,
                          textcoords="offset points", fontsize=13, weight="bold",
                          color=color,
                          arrowprops=dict(arrowstyle="->", color=color, lw=2.5),
-                         bbox=dict(boxstyle="round,pad=0.4", facecolor=bg_color,
+                         bbox=dict(boxstyle="round,pad=0.4", facecolor=bg,
                                    edgecolor=color, alpha=0.85))
 
-            ax2 = axes[2]
-            ax2.grid(True, alpha=0.15, color=grid_color)
-            rsi_from = div["from_rsi"]
-            rsi_to = div["to_rsi"]
-            r1 = plot_data.index[from_idx]
-            r2 = plot_data.index[to_idx]
-            ax2.scatter([mdates.date2num(r1), mdates.date2num(r2)],
-                        [rsi_from, rsi_to], color=color, s=150, zorder=10, marker=marker,
-                        edgecolors="white", linewidth=2)
-            ax2.plot([mdates.date2num(r1), mdates.date2num(r2)],
-                     [rsi_from, rsi_to], color=color, linewidth=2, linestyle=":", alpha=0.9)
+            if rsi_vals is not None:
+                rsi_from = div["from_rsi"]
+                rsi_to = div["to_rsi"]
+                ax_rsi.scatter([from_idx, to_idx], [rsi_from, rsi_to],
+                               color=color, s=180, zorder=10, marker=marker,
+                               edgecolors="white", linewidth=2)
+                ax_rsi.plot([from_idx, to_idx], [rsi_from, rsi_to],
+                            color=color, linewidth=2, linestyle=":", alpha=0.9)
 
     if entry:
         entry_price = entry["entry"]
         sl_price = entry["stop_loss"]
         tp_price = entry["take_profit"]
-        x_last = mdates.date2num(plot_data.index[-1])
-        x_mid = mdates.date2num(plot_data.index[-6])
+        x_mid = len(plot_data) - 6
+        x_last = len(plot_data) - 1
 
         color = "#00e676" if entry["action"] == "BUY" else "#ff1744"
         action = "ПОКУПКА" if entry["action"] == "BUY" else "ПРОДАЖА"
 
         ax1.axhline(y=entry_price, color="#ffffff", linewidth=2.5, alpha=0.8)
         ax1.annotate(f"{action}\n{entry_price}",
-                     xy=(x_last, entry_price), xytext=(20, -20),
+                     xy=(x_last, entry_price), xytext=(15, -25),
                      textcoords="offset points", fontsize=14, weight="bold",
                      color="#ffffff",
                      bbox=dict(boxstyle="round,pad=0.5", facecolor=color, alpha=0.9))
@@ -197,16 +180,25 @@ def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
         ax1.annotate(f"SL {sl_price}", xy=(x_mid, sl_price),
                      xytext=(5, -18), textcoords="offset points", fontsize=12,
                      color="#ffffff", weight="bold",
-                     bbox=dict(boxstyle="round,pad=0.2", facecolor="#ff1744", alpha=0.8))
+                     bbox=dict(boxstyle="round,pad=0.2", facecolor="#ff1744", alpha=0.85))
 
         rr = entry.get("risk_reward", "?")
-        tp_label = f"TP {tp_price} (R:R 1:{rr})"
+        tp_label = f"TP {tp_price} (1:{rr})"
         ax1.axhline(y=tp_price, color="#00e676", linewidth=2, linestyle="--", alpha=0.8)
         ax1.annotate(tp_label, xy=(x_mid, tp_price),
                      xytext=(5, 5), textcoords="offset points", fontsize=12,
                      color="#ffffff", weight="bold",
-                     bbox=dict(boxstyle="round,pad=0.2", facecolor="#00e676", alpha=0.8))
+                     bbox=dict(boxstyle="round,pad=0.2", facecolor="#00e676", alpha=0.85))
 
-    plt.savefig(filepath, dpi=180, bbox_inches="tight", facecolor=bg_color)
+    ax1.set_xlim(-0.5, len(plot_data) - 0.5)
+
+    time_fmt = "%H:%M" if tf in ("1m", "5m", "15m") else "%m/%d"
+    tick_step = max(1, len(plot_data) // 8)
+    tick_positions = list(range(0, len(plot_data), tick_step))
+    tick_labels = [plot_data.index[i].strftime(time_fmt) for i in tick_positions]
+    ax_rsi.set_xticks(tick_positions)
+    ax_rsi.set_xticklabels(tick_labels, rotation=25, ha="right", color=text_c, fontsize=10)
+
+    plt.savefig(filepath, dpi=180, bbox_inches="tight", facecolor=bg)
     plt.close(fig)
     return filepath
