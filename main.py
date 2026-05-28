@@ -5,6 +5,7 @@ from config import SYMBOLS, TIMEFRAMES, DIVERGENCE_LOOKBACK, PIVOT_ORDER, ENTRY_
 from data.provider import fetch_custom, normalize_symbol
 from analysis.indicators import compute_all, trend_direction, market_structure
 from analysis.divergences import find_divergences, check_rsi_conditions, generate_entry, confidence_score
+from analysis.chart_generator import generate_chart
 from bot.telegram import send_message
 
 CONFIDENCE_MIN = 65
@@ -31,6 +32,7 @@ def analyze_tf(symbol: str, tf: str, df):
                 "structure": struct,
                 "confidence": confidence,
                 "price": float(df["close"].iloc[-1]),
+                "df": df,
             }
 
     if best and tf in ENTRY_TIMEFRAMES:
@@ -116,12 +118,23 @@ def format_mtf(symbol: str, results: dict):
 
         lines.append(f"  {tf:<5} {rest}")
 
+    chart_path = None
     if entry_data:
         e, conf = entry_data
         arrow = "🟢" if e["action"] == "BUY" else "🔴"
         action = ACTION_RU.get(e["action"], e["action"])
         lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {action} {name} @ {e['entry']}"
                      f"  SL: {e['stop_loss']}  TP: {e['take_profit']}  R:R 1:{e['risk_reward']}  ({entry_tf}, {conf}%)")
+
+        best_result = results.get(entry_tf)
+        if best_result and best_result.get("div") and best_result.get("df") is not None:
+            chart_path = generate_chart(
+                symbol, entry_tf, best_result["df"],
+                best_result["div"], e
+            )
+
+    if chart_path:
+        lines.append(f"  📷 {chart_path}")
 
     return "\n".join(lines)
 
