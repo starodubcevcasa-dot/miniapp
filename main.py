@@ -65,6 +65,19 @@ def mtf_alignment(results: dict, tf: str) -> str:
     return "neutral"
 
 
+TREND_RU = {
+    "uptrend": "восход",
+    "downtrend": "нисход",
+    "bullish_bias": "бычий",
+    "bearish_bias": "медвеж",
+    "neutral": "нейтр",
+}
+DIR_RU = {"bullish": "БЫЧЬЯ", "bearish": "МЕДВ"}
+STRENGTH_RU = {"regular": "ОБЫЧ", "hidden": "СКРЫТ"}
+ACTION_RU = {"BUY": "ПОКУПКА", "SELL": "ПРОДАЖА"}
+ALIGN_RU = {"strong": "✅", "align": "↑", "conflict": "⚠", "neutral": "—"}
+
+
 def format_mtf(symbol: str, results: dict):
     name = symbol.replace("=X", "").replace("-USD", "")
     price = 0
@@ -74,7 +87,7 @@ def format_mtf(symbol: str, results: dict):
             price = r["price"]
             break
     lines = [f"\n{'='*50}", f"  {name}  ${price:.5f}", f"{'='*50}"]
-    lines.append(f"  {'TF':<5} {'Dir':<7} {'Div':<11} {'Conf':<6} {'Align':<8} {'Trend':<14} {'Entry/SL/TP'}")
+    lines.append(f"  {'ТФ':<5} {'Напр':<7} {'Сигнал':<11} {'Увер':<6} {'Согл':<8} {'Тренд':<14} {'Вход/SL/TP'}")
 
     entry_tf = None
     entry_data = None
@@ -90,9 +103,9 @@ def format_mtf(symbol: str, results: dict):
 
         align = mtf_alignment(results, tf)
         arrow = "🟢" if d["type"] == "bullish" else "🔴"
-        div_label = f"{d['strength'][:3]} {d['type'][:3]}".upper()
-        trend_short = r["trend"].replace("_", " ")[:12]
-        align_short = {"strong": "✅", "align": "↑", "conflict": "⚠", "neutral": "—"}.get(align, "—")
+        div_label = f"{STRENGTH_RU.get(d['strength'], d['strength'][:3])} {DIR_RU.get(d['type'], d['type'][:3])}"
+        trend_short = TREND_RU.get(r["trend"], r["trend"][:8])
+        align_short = ALIGN_RU.get(align, "—")
 
         rest = f"{arrow}  {div_label:<11} {conf}%  {align_short:<8} {trend_short:<14}"
         e = r.get("entry")
@@ -106,7 +119,8 @@ def format_mtf(symbol: str, results: dict):
     if entry_data:
         e, conf = entry_data
         arrow = "🟢" if e["action"] == "BUY" else "🔴"
-        lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {e['action']} {name} @ {e['entry']}"
+        action = ACTION_RU.get(e["action"], e["action"])
+        lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {action} {name} @ {e['entry']}"
                      f"  SL: {e['stop_loss']}  TP: {e['take_profit']}  R:R 1:{e['risk_reward']}  ({entry_tf}, {conf}%)")
 
     return "\n".join(lines)
