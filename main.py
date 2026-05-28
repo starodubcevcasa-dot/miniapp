@@ -88,7 +88,11 @@ def format_mtf(symbol: str, results: dict):
         if r and r.get("price", 0) > 0:
             price = r["price"]
             break
-    lines = [f"\n{'='*50}", f"  {name}  ${price:.5f}", f"{'='*50}"]
+
+    tv_symbol = symbol.replace("=X", "").replace("-USD", "").replace("-", "")
+    tv_url = f"https://www.tradingview.com/chart/?symbol={tv_symbol}"
+
+    lines = [f"\n{'='*50}", f"  {name}  ${price:.5f}", f"  {tv_url}", f"{'='*50}"]
     lines.append(f"  {'ТФ':<5} {'Напр':<7} {'Сигнал':<11} {'Увер':<6} {'Согл':<8} {'Тренд':<14} {'Вход/SL/TP'}")
 
     entry_tf = None
