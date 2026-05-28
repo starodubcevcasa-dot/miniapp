@@ -101,9 +101,6 @@ def _render(symbol, all_data, results, best_entry):
         ep = result["entry"]["entry"]
         sl = result["entry"]["stop_loss"]
         tp = result["entry"]["take_profit"]
-        ap.append(mpf.make_addplot(pd.Series(ep, index=df.index), color="#ffffff", width=1.2, linestyle="-"))
-        ap.append(mpf.make_addplot(pd.Series(sl, index=df.index), color="#f23645", width=1, linestyle="--"))
-        ap.append(mpf.make_addplot(pd.Series(tp, index=df.index), color="#089981", width=1, linestyle="--"))
 
     rsi_ap = None
     if "rsi" in df.columns:
