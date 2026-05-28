@@ -43,7 +43,7 @@ def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
     filename = f"{name}_{tf}_{pd.Timestamp.now().strftime('%H%M%S')}.png"
     filepath = os.path.join(CHARTS_DIR, filename)
 
-    candle_count = 50 if tf in ("1m", "5m") else 40
+    candle_count = 35 if tf in ("1m", "5m") else 35
     plot_data = df.iloc[-candle_count:].copy()
     plot_data.index = pd.to_datetime(plot_data.index)
 
@@ -115,7 +115,7 @@ def generate_chart(symbol: str, tf: str, df: pd.DataFrame, div: dict = None,
         addplot=ap_data if ap_data else None,
         volume=True,
         returnfig=True,
-        figsize=(20, 12),
+        figsize=(22, 14),
         title=f"\n{name} ({tf}) — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
         panel_ratios=(5, 0.8, 1.5),
         tight_layout=True,
