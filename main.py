@@ -138,7 +138,7 @@ def format_mtf(symbol: str, results: dict):
             )
 
     if chart_path:
-        lines.append(f"  📷 {chart_path}")
+        lines.append(f"  📷 file://{chart_path}")
 
     return "\n".join(lines)
 
