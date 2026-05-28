@@ -50,7 +50,8 @@ def _render(symbol, all_data, results, best_entry):
                      key=lambda x: ["5m", "15m", "1h", "4h", "1d"].index(x) if x in ["5m", "15m", "1h", "4h", "1d"] else 99)
     default_tf = best_entry[0] if best_entry else all_tfs[0]
 
-    df = all_data[default_tf].iloc[-55:].copy()
+    chart_tf = "5m" if "5m" in all_data else default_tf
+    df = all_data[chart_tf].iloc[-55:].copy()
     df.index = pd.to_datetime(df.index)
     result = results.get(default_tf, {}) or {}
 

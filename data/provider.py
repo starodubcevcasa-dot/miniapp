@@ -5,7 +5,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 from config import DATA_DIR, SYMBOLS, FETCH_PERIOD
 
-CACHE_TTL = {"5m": 120, "15m": 300, "1h": 3600, "4h": 7200, "1d": 86400}
+CACHE_TTL = {"1m": 60, "5m": 120, "15m": 300, "1h": 3600, "4h": 7200, "1d": 86400}
 
 
 def ensure_data_dir():
@@ -47,7 +47,7 @@ def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
         if now - last_time < timedelta(seconds=cache_ttl):
             return cached
 
-    interval_map = {"5m": "5m", "15m": "15m", "1h": "60m", "4h": "1h", "1d": "1d"}
+    interval_map = {"1m": "1m", "5m": "5m", "15m": "15m", "1h": "60m", "4h": "1h", "1d": "1d"}
     interval = interval_map.get(tf, "1h")
 
     ticker = yf.Ticker(symbol)

@@ -9,6 +9,7 @@ CRYPTO = ["BTC-USD", "ETH-USD"]
 SYMBOLS = MAJORS + CROSSES + EXOTICS + CRYPTO
 
 TIMEFRAMES = {
+    "1m": "1m",
     "5m": "5m",
     "15m": "15m",
     "1h": "1h",
@@ -17,6 +18,7 @@ TIMEFRAMES = {
 }
 
 FETCH_PERIOD = {
+    "1m": "3d",
     "5m": "5d",
     "15m": "10d",
     "1h": "2mo",
@@ -28,6 +30,7 @@ RSI_PERIOD = 14
 RSI_OVERSOLD = 30
 RSI_OVERBOUGHT = 70
 DIVERGENCE_LOOKBACK = {
+    "1m": 12,
     "5m": 15,
     "15m": 18,
     "1h": 20,
@@ -35,13 +38,14 @@ DIVERGENCE_LOOKBACK = {
     "1d": 25,
 }
 PIVOT_ORDER = {
+    "1m": 5,
     "5m": 4,
     "15m": 3,
     "1h": 3,
     "4h": 3,
     "1d": 3,
 }
-ENTRY_TIMEFRAMES = {"5m", "15m"}
+ENTRY_TIMEFRAMES = {"1m", "5m", "15m"}
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN", "")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
