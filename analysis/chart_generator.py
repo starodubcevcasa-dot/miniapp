@@ -13,7 +13,7 @@ def ensure_dir():
     os.makedirs(CHARTS_DIR, exist_ok=True)
 
 
-def find_levels(df, lookback=50):
+def find_levels(df, lookback=40):
     recent = df.iloc[-lookback:]
     highs, lows = recent["high"].values, recent["low"].values
 
@@ -43,7 +43,7 @@ def generate_interactive(symbol, all_data, results, best_entry):
 def _render(symbol, all_data, results, best_entry):
     ensure_dir()
     name = symbol.replace("=X", "").replace("-USD", "")
-    filename = f"{name}_chart_{pd.Timestamp.now().strftime('%H%M%S')}.png"
+    filename = f"{name}_{pd.Timestamp.now().strftime('%H%M%S')}.png"
     filepath = os.path.join(CHARTS_DIR, filename)
 
     all_tfs = sorted(all_data.keys(),
@@ -59,22 +59,19 @@ def _render(symbol, all_data, results, best_entry):
         wick={"up": "#089981", "down": "#f23645"},
         edge={"up": "#089981", "down": "#f23645"},
         volume={"up": "#089981", "down": "#f23645"},
-        ohlc={"up": "#089981", "down": "#f23645"},
     )
-    tv_style = mpf.make_mpf_style(
+    style = mpf.make_mpf_style(
         base_mpf_style="charles",
         marketcolors=mc,
         facecolor="#131722",
         figcolor="#131722",
-        edgecolor="#2a2e39",
         gridcolor="#2a2e39",
-        gridstyle="-",
+        gridaxis="both",
         rc={
-            "font.size": 11,
+            "font.size": 10,
             "axes.labelcolor": "#d1d4dc",
             "xtick.color": "#d1d4dc",
             "ytick.color": "#d1d4dc",
-            "axes.edgecolor": "#2a2e39",
         },
     )
 
@@ -84,12 +81,6 @@ def _render(symbol, all_data, results, best_entry):
         ap.append(mpf.make_addplot(df["sma_20"], color="#2962ff", width=1.2))
     if "sma_50" in df.columns:
         ap.append(mpf.make_addplot(df["sma_50"], color="#ff9800", width=1.2))
-
-    levels = find_levels(df)
-    for s in levels["support"]:
-        ap.append(mpf.make_addplot(pd.Series(s, index=df.index), color="#089981", width=1, linestyle="--", secondary_y=False))
-    for r in levels["resistance"]:
-        ap.append(mpf.make_addplot(pd.Series(r, index=df.index), color="#f23645", width=1, linestyle="--", secondary_y=False))
 
     div = result.get("div")
     if div:
@@ -103,45 +94,69 @@ def _render(symbol, all_data, results, best_entry):
             div_vals.iloc[ti] = div["to_price"]
             ap.append(mpf.make_addplot(
                 div_vals, type="scatter", marker=marker,
-                color=dc, markersize=150, edgecolors="white",
+                color=dc, markersize=200, edgecolors="white",
             ))
 
-    entry_e = result.get("entry")
-    if entry_e:
-        ep = entry_e["entry"]
-        sl = entry_e["stop_loss"]
-        tp = entry_e["take_profit"]
-        rr = entry_e.get("risk_reward", "?")
+    if result.get("entry"):
+        ep = result["entry"]["entry"]
+        sl = result["entry"]["stop_loss"]
+        tp = result["entry"]["take_profit"]
+        ap.append(mpf.make_addplot(pd.Series(ep, index=df.index), color="#ffffff", width=1.2, linestyle="-"))
+        ap.append(mpf.make_addplot(pd.Series(sl, index=df.index), color="#f23645", width=1, linestyle="--"))
+        ap.append(mpf.make_addplot(pd.Series(tp, index=df.index), color="#089981", width=1, linestyle="--"))
 
-        ap.append(mpf.make_addplot(pd.Series(ep, index=df.index), color="white", width=0.8, linestyle="-"))
-        ap.append(mpf.make_addplot(pd.Series(sl, index=df.index), color="#f23645", width=0.8, linestyle="--"))
-        ap.append(mpf.make_addplot(pd.Series(tp, index=df.index), color="#089981", width=0.8, linestyle="--"))
-
-    rsi_df = None
+    rsi_ap = None
     if "rsi" in df.columns:
-        rsi_df = df["rsi"]
-        ap.append(mpf.make_addplot(rsi_df, panel=1, color="#787b86", width=1.5, ylabel="RSI"))
+        rsi_ap = mpf.make_addplot(df["rsi"], panel="lower", color="#787b86", width=1.5, ylabel="RSI")
+        ap.append(rsi_ap)
 
     fig, axes = mpf.plot(
-        df,
-        type="candle",
-        style=tv_style,
-        title=f"{name} ({default_tf}) — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
-        ylabel="",
-        ylabel_lower="",
-        volume=False,
+        df, type="candle", style=style,
+        title=f"{name} ({default_tf})",
         addplot=ap,
         returnfig=True,
-        figsize=(18, 10),
-        panel_ratios=(5, 1),
+        figsize=(20, 11),
+        figscale=1.0,
+        volume=False,
         tight_layout=True,
     )
 
-    for a in axes:
-        try:
-            a.yaxis.tick_right()
-        except Exception:
-            pass
+    ax_main = axes[0]
+    ax_main.yaxis.tick_right()
+    ax_main.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.5f}"))
+
+    for line in ax_main.lines:
+        line.set_linewidth(1.0)
+
+    levels = find_levels(df)
+    for s in levels["support"]:
+        ax_main.axhline(y=s, color="#089981", linewidth=1.2, linestyle="--", alpha=0.6)
+        ax_main.text(len(df) - 1, s, f"  S {s:.5f}", color="#089981", fontsize=9, weight="bold",
+                     ha="left", va="bottom",
+                     bbox=dict(fc="#131722", ec="#089981", alpha=0.8, boxstyle="round,pad=0.1"))
+    for r in levels["resistance"]:
+        ax_main.axhline(y=r, color="#f23645", linewidth=1.2, linestyle="--", alpha=0.6)
+        ax_main.text(len(df) - 1, r, f"  R {r:.5f}", color="#f23645", fontsize=9, weight="bold",
+                     ha="left", va="bottom",
+                     bbox=dict(fc="#131722", ec="#f23645", alpha=0.8, boxstyle="round,pad=0.1"))
+
+    if result.get("entry"):
+        ep = result["entry"]["entry"]
+        sl = result["entry"]["stop_loss"]
+        tp = result["entry"]["take_profit"]
+        rr = result["entry"].get("risk_reward", "?")
+        act = "ПОКУПКА" if result["entry"]["action"] == "BUY" else "ПРОДАЖА"
+        dc = "#089981" if result["entry"]["action"] == "BUY" else "#f23645"
+
+        ax_main.annotate(f"{act}\n{ep:.5f}", xy=(len(df) - 1, ep), xytext=(10, -25),
+                         textcoords="offset points", fontsize=13, weight="bold", color="#fff",
+                         bbox=dict(boxstyle="round,pad=0.35", facecolor=dc, alpha=0.95, edgecolor="white"))
+        ax_main.annotate(f"SL {sl:.5f}", xy=(len(df) - 1, sl), xytext=(10, -15),
+                         textcoords="offset points", fontsize=11, color="#fff", weight="bold",
+                         bbox=dict(boxstyle="round,pad=0.2", facecolor="#f23645", alpha=0.9, edgecolor="white"))
+        ax_main.annotate(f"TP {tp:.5f} (1:{rr})", xy=(len(df) - 1, tp), xytext=(10, 5),
+                         textcoords="offset points", fontsize=11, color="#fff", weight="bold",
+                         bbox=dict(boxstyle="round,pad=0.2", facecolor="#089981", alpha=0.9, edgecolor="white"))
 
     fig.savefig(filepath, dpi=200, bbox_inches="tight", facecolor="#131722")
     plt.close(fig)
