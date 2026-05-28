@@ -137,7 +137,7 @@ def format_mtf(symbol: str, results: dict):
             chart_path = generate_interactive(symbol, chart_data, results, (entry_tf, e, conf))
 
     if chart_path:
-        lines.append(f"  📊 {chart_path}")
+        lines.append(f"  📷 {chart_path}")
         try:
             import subprocess
             subprocess.Popen(["open", chart_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
