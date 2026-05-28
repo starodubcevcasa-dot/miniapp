@@ -38,32 +38,34 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
     filename = f"{name}_{tf}_{pd.Timestamp.now().strftime('%H%M%S')}.png"
     filepath = os.path.join(CHARTS_DIR, filename)
 
-    n = 70
+    n = 80
     plot = df.iloc[-n:].copy()
     plot.index = pd.to_datetime(plot.index)
     x = np.arange(len(plot))
     n_actual = len(plot)
 
-    bg, txt, grid = "#0d1117", "#e6edf3", "#21262d"
+    bg = "#131722"
+    txt = "#d1d4dc"
+    grid = "#2a2e39"
+    up_c = "#089981"
+    down_c = "#f23645"
+    wick_c = "#7b7f8d"
 
-    fig = plt.figure(figsize=(30, 14), facecolor=bg)
-    gs = fig.add_gridspec(2, 1, height_ratios=[5, 1], hspace=0.04)
+    fig = plt.figure(figsize=(36, 14), facecolor=bg)
+    gs = fig.add_gridspec(2, 1, height_ratios=[5, 1], hspace=0.03)
 
     ax = fig.add_subplot(gs[0, 0], facecolor=bg)
     ax_rsi = fig.add_subplot(gs[1, 0], facecolor=bg, sharex=ax)
 
     fig.suptitle(f"{name} ({tf}) — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
-                 color=txt, fontsize=22, fontweight="bold", y=0.96)
+                 color=txt, fontsize=16, fontweight="bold", y=0.97)
 
     for a in [ax, ax_rsi]:
         a.set_facecolor(bg)
-        a.tick_params(colors=txt, labelsize=12)
-        a.grid(True, alpha=0.15, color=grid)
+        a.tick_params(colors=txt, labelsize=10)
+        a.grid(True, alpha=0.08, color=grid)
         for s in ["top", "right", "bottom", "left"]:
             a.spines[s].set_visible(False)
-
-    up_color, down_color = "#3fb950", "#f85149"
-    wick_up, wick_down = "#3fb950", "#f85149"
 
     opens = plot["open"].values
     highs = plot["high"].values
@@ -76,106 +78,103 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
     body_top = np.where(up, closes, opens)
     body_h = np.maximum(body_top - body_bot, 1e-10)
 
+    candle_w = 0.65
     for i in range(n_actual):
-        wc = wick_up if up[i] else wick_down
-        ax.plot([i, i], [lows[i], highs[i]],
-                color=wc, linewidth=1.2, zorder=1, solid_capstyle="round")
+        wc = "#787b86"
+        ax.plot([i, i], [lows[i], highs[i]], color=wc, linewidth=0.8, zorder=1)
 
-    ax.bar(x[up], body_h[up], bottom=body_bot[up], width=0.8,
-           color=up_color, edgecolor=up_color, linewidth=0.5, zorder=3)
-    ax.bar(x[down], body_h[down], bottom=body_bot[down], width=0.8,
-           color=down_color, edgecolor=down_color, linewidth=0.5, zorder=3)
+    ax.bar(x[up], body_h[up], bottom=body_bot[up], width=candle_w,
+           color=up_c, edgecolor=up_c, linewidth=0, zorder=3)
+    ax.bar(x[down], body_h[down], bottom=body_bot[down], width=candle_w,
+           color=down_c, edgecolor=down_c, linewidth=0, zorder=3)
 
     price_max = highs.max()
     price_min = lows.min()
     price_range = price_max - price_min
-    padding = price_range * 0.08 if price_range > 0 else 0.001
-    ax.set_ylim(price_min - padding, price_max + padding)
+    pad = price_range * 0.05 if price_range > 0 else 0.001
+    ax.set_ylim(price_min - pad, price_max + pad)
 
     if "sma_20" in plot.columns:
-        ax.plot(x, plot["sma_20"].values, color="#58a6ff", linewidth=2.5, alpha=0.9, label="SMA20")
+        ax.plot(x, plot["sma_20"].values, color="#2962ff", linewidth=1.2, alpha=0.8, label="SMA20")
     if "sma_50" in plot.columns:
-        ax.plot(x, plot["sma_50"].values, color="#d29922", linewidth=2.5, alpha=0.9, label="SMA50")
-    ax.legend(loc="upper left", fontsize=14, facecolor=bg, labelcolor=txt, edgecolor=grid)
+        ax.plot(x, plot["sma_50"].values, color="#ff9800", linewidth=1.2, alpha=0.8, label="SMA50")
+    ax.legend(loc="upper left", fontsize=11, facecolor=bg, labelcolor=txt, edgecolor=grid)
 
     levels = find_levels(df)
     for s in levels["support"]:
-        ax.axhline(y=s, color="#3fb950", linewidth=2.0, linestyle="--", alpha=0.6)
-        ax.text(n_actual - 1, s, f"  S {s:.5f}", color="#3fb950", fontsize=13, weight="bold",
-                ha="left", va="bottom",
-                bbox=dict(fc=bg, ec="#3fb950", alpha=0.9, boxstyle="round,pad=0.2"))
+        ax.axhline(y=s, color=up_c, linewidth=1, linestyle="--", alpha=0.35)
+        ax.text(n_actual - 1, s, f"  S {s:.5f}", color=up_c, fontsize=10, weight="bold",
+                ha="left", va="bottom", bbox=dict(fc=bg, ec=up_c, alpha=0.8, boxstyle="round,pad=0.1"))
     for r in levels["resistance"]:
-        ax.axhline(y=r, color="#f85149", linewidth=2.0, linestyle="--", alpha=0.6)
-        ax.text(n_actual - 1, r, f"  R {r:.5f}", color="#f85149", fontsize=13, weight="bold",
-                ha="left", va="bottom",
-                bbox=dict(fc=bg, ec="#f85149", alpha=0.9, boxstyle="round,pad=0.2"))
+        ax.axhline(y=r, color=down_c, linewidth=1, linestyle="--", alpha=0.35)
+        ax.text(n_actual - 1, r, f"  R {r:.5f}", color=down_c, fontsize=10, weight="bold",
+                ha="left", va="bottom", bbox=dict(fc=bg, ec=down_c, alpha=0.8, boxstyle="round,pad=0.1"))
 
     if "rsi" in plot.columns:
         rsi_vals = plot["rsi"].values
-        ax_rsi.plot(x, rsi_vals, color="#bc8cff", linewidth=2.5, label="RSI")
-        ax_rsi.axhline(y=70, color="#f85149", linestyle="--", alpha=0.4, linewidth=1.5)
-        ax_rsi.axhline(y=30, color="#3fb950", linestyle="--", alpha=0.4, linewidth=1.5)
-        ax_rsi.axhline(y=50, color="#555", linestyle=":", alpha=0.15, linewidth=0.8)
+        ax_rsi.plot(x, rsi_vals, color="#787b86", linewidth=1.5, label="RSI")
+        ax_rsi.axhline(y=70, color=down_c, linestyle="--", alpha=0.3, linewidth=0.8)
+        ax_rsi.axhline(y=30, color=up_c, linestyle="--", alpha=0.3, linewidth=0.8)
+        ax_rsi.axhline(y=50, color="#555", linestyle=":", alpha=0.1, linewidth=0.5)
         ax_rsi.set_ylim(0, 100)
-        ax_rsi.fill_between(x, 30, 70, alpha=0.05, color="#fff")
-        ax_rsi.legend(loc="upper left", fontsize=13, facecolor=bg, labelcolor=txt, edgecolor=grid)
+        ax_rsi.fill_between(x, 30, 70, alpha=0.03, color="#fff")
+        ax_rsi.legend(loc="upper left", fontsize=10, facecolor=bg, labelcolor=txt, edgecolor=grid)
 
     if div:
         fi = max(0, div["from_idx"] - len(df) + n_actual)
         ti = max(0, div["to_idx"] - len(df) + n_actual)
         if fi < n_actual and ti < n_actual:
             p1, p2 = div["from_price"], div["to_price"]
-            c = up_color if div["type"] == "bullish" else down_color
+            dc = up_c if div["type"] == "bullish" else down_c
             m = "^" if div["type"] == "bullish" else "v"
 
-            ax.scatter([fi, ti], [p1, p2], color=c, s=400, zorder=10, marker=m,
-                       edgecolors="white", linewidth=3)
-            ax.plot([fi, ti], [p1, p2], color=c, linewidth=3.0, linestyle=":", alpha=0.9)
+            ax.scatter([fi, ti], [p1, p2], color=dc, s=200, zorder=10, marker=m,
+                       edgecolors="white", linewidth=1.5)
+            ax.plot([fi, ti], [p1, p2], color=dc, linewidth=1.5, linestyle=":", alpha=0.7)
 
-            label = f"{'БЫЧЬЯ' if div['type'] == 'bullish' else 'МЕДВЕЖЬЯ'} ДИВЕРГЕНЦИЯ"
-            off = (-40, -60) if div["type"] == "bullish" else (40, 60)
-            ax.annotate(label, xy=(ti, p2), xytext=off, textcoords="offset points",
-                        fontsize=14, weight="bold", color=c,
-                        arrowprops=dict(arrowstyle="->", color=c, lw=3),
-                        bbox=dict(boxstyle="round,pad=0.4", facecolor=bg, edgecolor=c, alpha=0.9))
+            lbl = f"{'БЫЧЬЯ' if div['type'] == 'bullish' else 'МЕДВЕЖЬЯ'} ДИВЕРГЕНЦИЯ"
+            off = (-20, -30) if div["type"] == "bullish" else (20, 30)
+            ax.annotate(lbl, xy=(ti, p2), xytext=off, textcoords="offset points",
+                        fontsize=10, weight="bold", color=dc,
+                        arrowprops=dict(arrowstyle="->", color=dc, lw=1.5),
+                        bbox=dict(boxstyle="round,pad=0.25", facecolor=bg, edgecolor=dc, alpha=0.85))
 
             if "rsi" in plot.columns:
                 ax_rsi.scatter([fi, ti], [div["from_rsi"], div["to_rsi"]],
-                               color=c, s=300, zorder=10, marker=m,
-                               edgecolors="white", linewidth=2.5)
+                               color=dc, s=150, zorder=10, marker=m,
+                               edgecolors="white", linewidth=1.5)
                 ax_rsi.plot([fi, ti], [div["from_rsi"], div["to_rsi"]],
-                            color=c, linewidth=2.5, linestyle=":", alpha=0.9)
+                            color=dc, linewidth=1.5, linestyle=":", alpha=0.7)
 
     if entry:
         ep, sl, tp = entry["entry"], entry["stop_loss"], entry["take_profit"]
-        x_label = n_actual - 1
-        c = "#3fb950" if entry["action"] == "BUY" else "#f85149"
+        dc = up_c if entry["action"] == "BUY" else down_c
         act = "ПОКУПКА" if entry["action"] == "BUY" else "ПРОДАЖА"
         rr = entry.get("risk_reward", "?")
 
-        ax.axhline(y=ep, color="#ffffff", linewidth=1.5, alpha=0.5, linestyle="-", zorder=5)
-        ax.axhline(y=sl, color="#f85149", linewidth=1.5, linestyle="--", alpha=0.5, zorder=5)
-        ax.axhline(y=tp, color="#3fb950", linewidth=1.5, linestyle="--", alpha=0.5, zorder=5)
+        ax.axhline(y=ep, color="#ffffff", linewidth=1, alpha=0.4, linestyle="-", zorder=5)
+        ax.axhline(y=sl, color=down_c, linewidth=1, linestyle="--", alpha=0.4, zorder=5)
+        ax.axhline(y=tp, color=up_c, linewidth=1, linestyle="--", alpha=0.4, zorder=5)
 
         info_text = f"{act} {ep:.5f} | SL {sl:.5f} | TP {tp:.5f} (1:{rr})"
-        ax.annotate(info_text, xy=(n_actual // 2, 1), xytext=(0, 0),
-                    textcoords="axes fraction", fontsize=16, weight="bold", color="#fff",
+        ax.annotate(info_text, xy=(0.5, 1), xytext=(0, 0),
+                    textcoords="axes fraction", fontsize=14, weight="bold", color="#fff",
                     ha="center", va="top",
-                    bbox=dict(boxstyle="round,pad=0.4", facecolor=c, alpha=0.85, edgecolor="white"))
+                    bbox=dict(boxstyle="round,pad=0.35", facecolor=dc, alpha=0.85, edgecolor="white"))
 
     ax.set_xlim(-1, n_actual + 1)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.5f}"))
     ax.yaxis.tick_right()
     ax.tick_params(labelbottom=False)
-    ax.tick_params(axis="y", labelsize=13)
+    ax.tick_params(axis="y", labelsize=11)
 
     fmt = "%d.%m %H:%M"
-    step = max(1, n_actual // 8)
+    step = max(1, n_actual // 10)
     tick_pos = list(range(0, n_actual, step))
     tick_lbl = [plot.index[i].strftime(fmt) for i in tick_pos]
     ax_rsi.set_xticks(tick_pos)
-    ax_rsi.set_xticklabels(tick_lbl, rotation=20, ha="right", color=txt, fontsize=11)
+    ax_rsi.set_xticklabels(tick_lbl, rotation=15, ha="right", color=txt, fontsize=9)
 
-    plt.savefig(filepath, dpi=220, bbox_inches="tight", facecolor=bg)
+    plt.savefig(filepath, dpi=200, bbox_inches="tight", facecolor=bg)
     plt.close(fig)
     return filepath
