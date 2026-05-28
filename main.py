@@ -9,7 +9,7 @@ from analysis.chart_generator import generate_chart
 from bot.telegram import send_message
 
 CONFIDENCE_MIN = 65
-TF_ORDER = ["1m", "5m", "15m", "1h", "4h", "1d"]
+TF_ORDER = ["5m", "15m", "1h", "4h", "1d"]
 
 
 def analyze_tf(symbol: str, tf: str, df):

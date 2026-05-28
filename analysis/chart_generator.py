@@ -165,7 +165,7 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
     ax.set_xlim(-0.5, n - 0.5)
     ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda x, _: f"{x:.5f}"))
 
-    fmt = "%H:%M" if tf in ("1m", "5m", "15m") else "%m/%d"
+    fmt = "%H:%M" if tf in ("5m", "15m") else "%m/%d"
     step = max(1, n // 8)
     tick_pos = list(range(0, n, step))
     tick_lbl = [plot.index[i].strftime(fmt) for i in tick_pos]

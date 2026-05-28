@@ -3,7 +3,9 @@ import pickle
 import yfinance as yf
 import pandas as pd
 from datetime import datetime, timedelta
-from config import DATA_DIR, TIMEFRAMES, SYMBOLS, FETCH_PERIOD
+from config import DATA_DIR, SYMBOLS, FETCH_PERIOD
+
+CACHE_TTL = {"5m": 120, "15m": 300, "1h": 3600, "4h": 7200, "1d": 86400}
 
 
 def ensure_data_dir():
@@ -28,7 +30,10 @@ def save_cache(symbol, tf, df):
         pickle.dump(df, f)
 
 
-CACHE_TTL = {"1m": 60, "1h": 3600, "4h": 7200, "1d": 86400}
+def has_movement(df) -> bool:
+    if df.empty:
+        return False
+    return (df["high"] != df["low"]).any()
 
 
 def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
@@ -42,7 +47,7 @@ def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
         if now - last_time < timedelta(seconds=cache_ttl):
             return cached
 
-    interval_map = {"1m": "1m", "1h": "60m", "4h": "1h", "1d": "1d"}
+    interval_map = {"5m": "5m", "15m": "15m", "1h": "60m", "4h": "1h", "1d": "1d"}
     interval = interval_map.get(tf, "1h")
 
     ticker = yf.Ticker(symbol)
@@ -58,19 +63,17 @@ def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
 
     if tf == "4h" and interval == "1h":
         df = df.resample("4h").agg({
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
+            "open": "first", "high": "max", "low": "min",
+            "close": "last", "volume": "sum",
         }).dropna()
 
-    save_cache(symbol, tf, df)
+    if has_movement(df):
+        save_cache(symbol, tf, df)
     return df
 
 
 def fetch_all() -> dict:
-    return fetch_custom(SYMBOLS, list(TIMEFRAMES.keys()))
+    return fetch_custom(SYMBOLS, list(FETCH_PERIOD.keys()))
 
 
 def fetch_custom(symbols: list, timeframes: list[str]) -> dict:
@@ -79,7 +82,7 @@ def fetch_custom(symbols: list, timeframes: list[str]) -> dict:
     for symbol in symbols:
         for tf in timeframes:
             df = fetch_ohlcv(symbol, tf)
-            if not df.empty:
+            if not df.empty and has_movement(df):
                 result[(symbol, tf)] = df
     return result
 
