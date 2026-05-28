@@ -138,7 +138,12 @@ def format_mtf(symbol: str, results: dict):
             )
 
     if chart_path:
-        lines.append(f"  📷 file://{chart_path}")
+        lines.append(f"  📷 {chart_path}")
+        try:
+            import subprocess
+            subprocess.Popen(["open", chart_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception:
+            pass
 
     return "\n".join(lines)
 
