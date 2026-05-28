@@ -5,7 +5,7 @@ from config import SYMBOLS, TIMEFRAMES, DIVERGENCE_LOOKBACK, PIVOT_ORDER, ENTRY_
 from data.provider import fetch_custom, normalize_symbol
 from analysis.indicators import compute_all, trend_direction, market_structure
 from analysis.divergences import find_divergences, check_rsi_conditions, generate_entry, confidence_score
-from analysis.chart_generator import generate_chart
+from analysis.chart_generator import generate_chart, generate_interactive
 from bot.telegram import send_message
 
 CONFIDENCE_MIN = 65
@@ -131,16 +131,13 @@ def format_mtf(symbol: str, results: dict):
         lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {action} {name} @ {e['entry']}"
                      f"  SL: {e['stop_loss']}  TP: {e['take_profit']}  R:R 1:{e['risk_reward']}  ({entry_tf}, {conf}%)")
 
-        chart_df = results.get("chart_df")
-        best_result = results.get(entry_tf)
-        if chart_df is not None and best_result and best_result.get("div"):
-            chart_path = generate_chart(
-                symbol, "5m", chart_df,
-                best_result["div"], e
-            )
+        chart_data = results.get("_chart_data")
+        if chart_data:
+            from analysis.chart_generator import generate_interactive
+            chart_path = generate_interactive(symbol, chart_data, results, (entry_tf, e, conf))
 
     if chart_path:
-        lines.append(f"  📷 {chart_path}")
+        lines.append(f"  📊 {chart_path}")
         try:
             import subprocess
             subprocess.Popen(["open", chart_path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -155,20 +152,21 @@ def analyze_full(symbols: list[str], timeframes: list[str]):
     grouped = {}
 
     for (symbol, tf), df in data.items():
+        from analysis.indicators import compute_all
+        df = compute_all(df)
         result = analyze_tf(symbol, tf, df)
         if result:
             grouped.setdefault(symbol, {})[tf] = result
 
-    # also fetch 5m for chart rendering
-    chart_data = fetch_custom(symbols, ["5m"])
-
     for symbol in symbols:
         if symbol in grouped:
-            for (s, tf), df in chart_data.items():
+            chart_data = {}
+            for (s, tf), df in data.items():
                 if s == symbol:
                     from analysis.indicators import compute_all
-                    grouped[symbol]["chart_df"] = compute_all(df)
-                    break
+                    chart_data[tf] = compute_all(df)
+            if chart_data:
+                grouped[symbol]["_chart_data"] = chart_data
             text = format_mtf(symbol, grouped[symbol])
             print(text)
             send_message(text)
