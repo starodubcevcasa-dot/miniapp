@@ -117,23 +117,25 @@ def format_mtf(symbol: str, results: dict):
         e = r.get("entry")
         if e and tf in ENTRY_TIMEFRAMES and conf >= CONFIDENCE_MIN:
             rest += f" {e['entry']} / SL:{e['stop_loss']} / TP:{e['take_profit']} (1:{e['risk_reward']})"
-            if not entry_data or r.get("confidence", 0) > entry_data[1]:
-                entry_tf, entry_data = tf, (e, r["confidence"])
+            priority = 0 if tf == "15m" else 1 if tf == "5m" else 2
+            if not entry_data or priority < entry_data[2]:
+                entry_tf, entry_data = tf, (e, r["confidence"], priority)
 
         lines.append(f"  {tf:<5} {rest}")
 
     chart_path = None
     if entry_data:
-        e, conf = entry_data
+        e, conf, _ = entry_data
         arrow = "🟢" if e["action"] == "BUY" else "🔴"
         action = ACTION_RU.get(e["action"], e["action"])
         lines.append(f"\n  РЕКОМЕНДАЦИЯ: {arrow} {action} {name} @ {e['entry']}"
                      f"  SL: {e['stop_loss']}  TP: {e['take_profit']}  R:R 1:{e['risk_reward']}  ({entry_tf}, {conf}%)")
 
+        chart_df = results.get("chart_df")
         best_result = results.get(entry_tf)
-        if best_result and best_result.get("div") and best_result.get("df") is not None:
+        if chart_df is not None and best_result and best_result.get("div"):
             chart_path = generate_chart(
-                symbol, entry_tf, best_result["df"],
+                symbol, "5m", chart_df,
                 best_result["div"], e
             )
 
@@ -157,8 +159,16 @@ def analyze_full(symbols: list[str], timeframes: list[str]):
         if result:
             grouped.setdefault(symbol, {})[tf] = result
 
+    # also fetch 5m for chart rendering
+    chart_data = fetch_custom(symbols, ["5m"])
+
     for symbol in symbols:
         if symbol in grouped:
+            for (s, tf), df in chart_data.items():
+                if s == symbol:
+                    from analysis.indicators import compute_all
+                    grouped[symbol]["chart_df"] = compute_all(df)
+                    break
             text = format_mtf(symbol, grouped[symbol])
             print(text)
             send_message(text)
