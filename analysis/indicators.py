@@ -71,6 +71,14 @@ def market_structure(df: pd.DataFrame, lookback: int = 10) -> str:
     return "mixed"
 
 
+def stochastic(df: pd.DataFrame, k_period=14, d_period=3) -> tuple[pd.Series, pd.Series]:
+    low_k = df["low"].rolling(k_period).min()
+    high_k = df["high"].rolling(k_period).max()
+    k = 100 * (df["close"] - low_k) / (high_k - low_k).replace(0, np.nan)
+    d = k.rolling(d_period).mean()
+    return k, d
+
+
 def compute_all(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
     df["rsi"] = rsi(df["close"], 14)
@@ -79,4 +87,5 @@ def compute_all(df: pd.DataFrame) -> pd.DataFrame:
     df["sma_200"] = sma(df["close"], 200)
     df["macd"], df["macd_signal"], df["macd_hist"] = macd(df["close"])
     df["atr"] = atr(df)
+    df["stoch_k"], df["stoch_d"] = stochastic(df)
     return df
