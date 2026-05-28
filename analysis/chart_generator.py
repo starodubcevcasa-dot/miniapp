@@ -147,22 +147,17 @@ def generate_chart(symbol, tf, df, div=None, entry=None):
         x_label = n_actual - 1
         c = "#3fb950" if entry["action"] == "BUY" else "#f85149"
         act = "ПОКУПКА" if entry["action"] == "BUY" else "ПРОДАЖА"
-
-        ax.axhline(y=ep, color="#ffffff", linewidth=2.5, alpha=0.7, linestyle="-", zorder=5)
-        ax.annotate(f"{act}\n{ep:.5f}", xy=(x_label, ep), xytext=(15, -35),
-                    textcoords="offset points", fontsize=18, weight="bold", color="#fff",
-                    bbox=dict(boxstyle="round,pad=0.5", facecolor=c, alpha=0.95, edgecolor="white"))
-
-        ax.axhline(y=sl, color="#f85149", linewidth=2.5, linestyle="--", alpha=0.7, zorder=5)
-        ax.annotate(f"SL {sl:.5f}", xy=(x_label, sl), xytext=(15, -22),
-                    textcoords="offset points", fontsize=15, color="#fff", weight="bold",
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="#f85149", alpha=0.95, edgecolor="white"))
-
         rr = entry.get("risk_reward", "?")
-        ax.axhline(y=tp, color="#3fb950", linewidth=2.5, linestyle="--", alpha=0.7, zorder=5)
-        ax.annotate(f"TP {tp:.5f} (1:{rr})", xy=(x_label, tp), xytext=(15, 5),
-                    textcoords="offset points", fontsize=15, color="#fff", weight="bold",
-                    bbox=dict(boxstyle="round,pad=0.3", facecolor="#3fb950", alpha=0.95, edgecolor="white"))
+
+        ax.axhline(y=ep, color="#ffffff", linewidth=1.5, alpha=0.5, linestyle="-", zorder=5)
+        ax.axhline(y=sl, color="#f85149", linewidth=1.5, linestyle="--", alpha=0.5, zorder=5)
+        ax.axhline(y=tp, color="#3fb950", linewidth=1.5, linestyle="--", alpha=0.5, zorder=5)
+
+        info_text = f"{act} {ep:.5f} | SL {sl:.5f} | TP {tp:.5f} (1:{rr})"
+        ax.annotate(info_text, xy=(n_actual // 2, 1), xytext=(0, 0),
+                    textcoords="axes fraction", fontsize=16, weight="bold", color="#fff",
+                    ha="center", va="top",
+                    bbox=dict(boxstyle="round,pad=0.4", facecolor=c, alpha=0.85, edgecolor="white"))
 
     ax.set_xlim(-1, n_actual + 1)
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{x:.5f}"))
