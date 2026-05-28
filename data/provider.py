@@ -70,11 +70,28 @@ def fetch_ohlcv(symbol: str, tf: str) -> pd.DataFrame:
 
 
 def fetch_all() -> dict:
+    return fetch_custom(SYMBOLS, list(TIMEFRAMES.keys()))
+
+
+def fetch_custom(symbols: list, timeframes: list[str]) -> dict:
     ensure_data_dir()
     result = {}
-    for symbol in SYMBOLS:
-        for tf in TIMEFRAMES:
+    for symbol in symbols:
+        for tf in timeframes:
             df = fetch_ohlcv(symbol, tf)
             if not df.empty:
                 result[(symbol, tf)] = df
     return result
+
+
+def normalize_symbol(raw: str) -> str:
+    s = raw.upper().strip()
+    if s.endswith("=X") or s.endswith("-USD"):
+        return s
+    if s == "BTC" or s == "BTCUSD":
+        return "BTC-USD"
+    if s == "ETH" or s == "ETHUSD":
+        return "ETH-USD"
+    if len(s) == 6 and s.isalpha():
+        return f"{s[:3]}{s[3:]}=X"
+    return s
