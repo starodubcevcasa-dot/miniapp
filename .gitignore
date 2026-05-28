@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+data_cache/
+*.pkl
+.env
+signals.json
+risk_log.json
