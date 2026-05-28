@@ -30,16 +30,15 @@ def find_levels(df, lookback=50):
     return {"resistance": [r for r in res if r], "support": [s for s in sup if s]}
 
 
-def make_candle_traces(tf, df, result, is_visible):
+def make_price_traces(tf, df, result, is_visible):
     traces = []
-    n = len(df)
     dates = df.index.tolist()
+    n = len(df)
 
     traces.append(go.Candlestick(
         x=dates, open=df["open"], high=df["high"],
         low=df["low"], close=df["close"],
-        name=f"{tf}",
-        visible=is_visible,
+        name=f"{tf}", visible=is_visible,
         showlegend=False,
         increasing_line_color="#089981", decreasing_line_color="#f23645",
         line=dict(width=0.8),
@@ -59,23 +58,36 @@ def make_candle_traces(tf, df, result, is_visible):
         ))
 
     levels = find_levels(df)
+    last_date = dates[-1]
     for s in levels["support"]:
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[s, s],
             name=f"S {s:.5f}", visible=is_visible, showlegend=False,
-            mode="lines+text",
+            mode="lines",
             line=dict(color="#089981", width=1, dash="dash"),
-            text=[f"S {s:.5f}", ""], textposition="top left",
-            textfont=dict(color="#089981", size=10),
+        ))
+        traces.append(go.Scatter(
+            x=[last_date], y=[s],
+            name=f"S_label", visible=is_visible, showlegend=False,
+            mode="text",
+            text=[f"S {s:.5f}"],
+            textposition="middle right",
+            textfont=dict(color="#089981", size=10, family="monospace"),
         ))
     for r in levels["resistance"]:
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[r, r],
             name=f"R {r:.5f}", visible=is_visible, showlegend=False,
-            mode="lines+text",
+            mode="lines",
             line=dict(color="#f23645", width=1, dash="dash"),
-            text=[f"R {r:.5f}", ""], textposition="top left",
-            textfont=dict(color="#f23645", size=10),
+        ))
+        traces.append(go.Scatter(
+            x=[last_date], y=[r],
+            name=f"R_label", visible=is_visible, showlegend=False,
+            mode="text",
+            text=[f"R {r:.5f}"],
+            textposition="middle right",
+            textfont=dict(color="#f23645", size=10, family="monospace"),
         ))
 
     div = result.get("div")
@@ -85,17 +97,23 @@ def make_candle_traces(tf, df, result, is_visible):
         if fi < n and ti < n:
             dc = "#089981" if div["type"] == "bullish" else "#f23645"
             marker = "triangle-up" if div["type"] == "bullish" else "triangle-down"
-            label = "БЫЧЬЯ ДИВЕРГЕНЦИЯ" if div["type"] == "bullish" else "МЕДВЕЖЬЯ ДИВЕРГЕНЦИЯ"
+            label = "БЫЧЬЯ ДИВ" if div["type"] == "bullish" else "МЕДВЕЖЬЯ ДИВ"
 
             traces.append(go.Scatter(
                 x=[dates[fi], dates[ti]],
                 y=[div["from_price"], div["to_price"]],
-                name=label, visible=is_visible, showlegend=False,
+                name=f"div_{tf}", visible=is_visible, showlegend=False,
                 mode="markers+lines",
-                marker=dict(size=12, color=dc, symbol=marker, line=dict(color="white", width=1.5)),
+                marker=dict(size=10, color=dc, symbol=marker, line=dict(color="white", width=1.5)),
                 line=dict(color=dc, width=1.5, dash="dot"),
-                text=[label], textposition="top center",
-                textfont=dict(color=dc, size=10),
+            ))
+            traces.append(go.Scatter(
+                x=[dates[ti]], y=[div["to_price"]],
+                name=f"div_label", visible=is_visible, showlegend=False,
+                mode="text",
+                text=[label],
+                textposition="top center" if div["type"] == "bullish" else "bottom center",
+                textfont=dict(color=dc, size=11, family="monospace"),
             ))
 
     entry_e = result.get("entry")
@@ -107,27 +125,21 @@ def make_candle_traces(tf, df, result, is_visible):
 
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[ep, ep],
-            name=f"{act} {ep:.5f}", visible=is_visible, showlegend=False,
-            mode="lines+text",
-            line=dict(color="white", width=1),
-            text=[f"{act} {ep:.5f}", ""], textposition="top left",
-            textfont=dict(color=dc, size=11),
+            name="entry_line", visible=is_visible, showlegend=False,
+            mode="lines",
+            line=dict(color="white", width=1.5),
         ))
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[sl, sl],
-            name=f"SL {sl:.5f}", visible=is_visible, showlegend=False,
-            mode="lines+text",
-            line=dict(color="#f23645", width=1, dash="dash"),
-            text=[f"SL {sl:.5f}", ""], textposition="top left",
-            textfont=dict(color="#f23645", size=10),
+            name="sl_line", visible=is_visible, showlegend=False,
+            mode="lines",
+            line=dict(color="#f23645", width=1.5, dash="dash"),
         ))
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[tp, tp],
-            name=f"TP {tp:.5f} 1:{rr}", visible=is_visible, showlegend=False,
-            mode="lines+text",
-            line=dict(color="#089981", width=1, dash="dash"),
-            text=[f"TP {tp:.5f} 1:{rr}", ""], textposition="top left",
-            textfont=dict(color="#089981", size=10),
+            name="tp_line", visible=is_visible, showlegend=False,
+            mode="lines",
+            line=dict(color="#089981", width=1.5, dash="dash"),
         ))
 
     return traces
@@ -141,16 +153,17 @@ def make_rsi_traces(tf, df, result, is_visible):
 
     traces.append(go.Scatter(
         x=dates, y=df["rsi"],
-        name=f"RSI", visible=is_visible, showlegend=False,
-        line=dict(color="#787b86", width=1.2),
+        name=f"RSI_{tf}", visible=is_visible, showlegend=False,
+        line=dict(color="#787b86", width=1.5),
     ))
 
-    for level, color in [(70, "#f23645"), (30, "#089981")]:
+    for level, color in [(70, "#f23645"), (30, "#089981"), (50, "#555")]:
+        dash = "dash" if level != 50 else "dot"
         traces.append(go.Scatter(
             x=[dates[0], dates[-1]], y=[level, level],
-            name=f"RSI {level}", visible=is_visible, showlegend=False,
+            name=f"rsi_{level}", visible=is_visible, showlegend=False,
             mode="lines",
-            line=dict(color=color, width=0.8, dash="dash"),
+            line=dict(color=color, width=0.8, dash=dash),
         ))
 
     div = result.get("div")
@@ -163,9 +176,9 @@ def make_rsi_traces(tf, df, result, is_visible):
             traces.append(go.Scatter(
                 x=[dates[fi], dates[ti]],
                 y=[div["from_rsi"], div["to_rsi"]],
-                name="RSI div", visible=is_visible, showlegend=False,
+                name=f"rsi_div_{tf}", visible=is_visible, showlegend=False,
                 mode="markers+lines",
-                marker=dict(size=10, color=dc, symbol=marker, line=dict(color="white", width=1.5)),
+                marker=dict(size=8, color=dc, symbol=marker, line=dict(color="white", width=1.5)),
                 line=dict(color=dc, width=1.5, dash="dot"),
             ))
 
@@ -187,11 +200,13 @@ def generate_interactive(symbol, all_data, results, best_entry):
 
     default_tf = best_entry[0] if best_entry else all_tfs[0]
 
+    n_candles = 100
+
     fig = make_subplots(
         rows=2, cols=1,
-        row_heights=[0.75, 0.25],
+        row_heights=[0.78, 0.22],
         shared_xaxes=True,
-        vertical_spacing=0.04,
+        vertical_spacing=0.03,
     )
 
     all_price_traces = []
@@ -200,12 +215,14 @@ def generate_interactive(symbol, all_data, results, best_entry):
 
     idx = 0
     for tf in all_tfs:
-        df = all_data[tf].iloc[-80:].copy()
+        df = all_data[tf].iloc[-n_candles:].copy()
         df.index = pd.to_datetime(df.index)
         result = results.get(tf, {})
+        if not result:
+            result = {}
         is_vis = tf == default_tf
 
-        price_tr = make_candle_traces(tf, df, result, is_vis)
+        price_tr = make_price_traces(tf, df, result, is_vis)
         rsi_tr = make_rsi_traces(tf, df, result, is_vis)
 
         start_idx = idx
@@ -218,13 +235,14 @@ def generate_interactive(symbol, all_data, results, best_entry):
         tf_to_indices[tf] = (start_idx, idx)
 
     buttons = []
+    labels_map = {"5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h", "1d": "1d"}
     for tf in all_tfs:
         start, end = tf_to_indices[tf]
         vis = [False] * idx
         for i in range(start, end):
             vis[i] = True
         buttons.append(dict(
-            label=tf,
+            label=labels_map.get(tf, tf),
             method="update",
             args=[{"visible": vis}],
         ))
@@ -233,15 +251,15 @@ def generate_interactive(symbol, all_data, results, best_entry):
         template="plotly_dark",
         paper_bgcolor="#131722",
         plot_bgcolor="#131722",
-        font=dict(color="#d1d4dc", size=11),
+        font=dict(color="#d1d4dc", size=12),
         title=dict(
             text=f"{name} — {pd.Timestamp.now().strftime('%d.%m %H:%M')}",
-            font=dict(size=16, color="#d1d4dc"),
-            y=0.97,
+            font=dict(size=18, color="#d1d4dc", family="Arial"),
+            y=0.98,
         ),
         hovermode="x unified",
         dragmode="zoom",
-        margin=dict(l=40, r=60, t=50, b=20),
+        margin=dict(l=30, r=80, t=60, b=20),
         xaxis=dict(
             showgrid=True, gridcolor="#2a2e39", gridwidth=0.5,
             showspikes=True, spikemode="across", spikesnap="cursor",
@@ -256,36 +274,41 @@ def generate_interactive(symbol, all_data, results, best_entry):
             side="right",
             tickformat=".5f",
             showline=False,
+            fixedrange=False,
         ),
         yaxis2=dict(
             showgrid=True, gridcolor="#2a2e39", gridwidth=0.5,
             range=[0, 100],
             showline=False,
+            fixedrange=False,
         ),
         updatemenus=[dict(
             buttons=buttons,
             direction="down",
             showactive=True,
-            x=0, xanchor="left",
-            y=1.08, yanchor="top",
-            bgcolor="#2a2e39",
+            x=0.01, xanchor="left",
+            y=1.12, yanchor="top",
+            bgcolor="#1e222d",
             bordercolor="#d1d4dc",
-            font=dict(color="#d1d4dc"),
+            font=dict(color="#d1d4dc", size=13),
             active=all_tfs.index(default_tf),
+            pad=dict(r=5, t=5),
         )],
-        legend=dict(
-            font=dict(size=10),
-            bgcolor="rgba(0,0,0,0)",
-        ),
+        legend=dict(font=dict(size=10), bgcolor="rgba(0,0,0,0)", itemclick=False),
+        hoverlabel=dict(bgcolor="#1e222d", font=dict(color="#d1d4dc", size=12)),
+        separators=".,",
     )
 
-    fig.update_xaxes(rangeslider=dict(visible=False))
+    fig.update_xaxes(rangeslider=dict(visible=True, thickness=0.04, bgcolor="#1e222d"))
 
-    fig.write_html(filepath, include_plotlyjs="cdn", full_html=True,
-                   config={
-                       "scrollZoom": True,
-                       "displayModeBar": True,
-                       "modeBarButtonsToRemove": ["lasso2d", "select2d"],
-                       "displaylogo": False,
-                   })
+    fig.write_html(
+        filepath, include_plotlyjs="cdn", full_html=True,
+        config={
+            "scrollZoom": True,
+            "displayModeBar": True,
+            "modeBarButtonsToRemove": ["lasso2d", "select2d", "autoScale2d"],
+            "displaylogo": False,
+            "responsive": True,
+        },
+    )
     return filepath
